@@ -11,4 +11,9 @@ if [[ -f "$PROJECT_DIR/.env" ]]; then
     set +a
 fi
 
+# mcp-discord reads DISCORD_TOKEN; use the observer bot token for MCP
+if [[ -n "${DISCORD_MCP_TOKEN:-}" ]]; then
+    export DISCORD_TOKEN="$DISCORD_MCP_TOKEN"
+fi
+
 exec "$@"

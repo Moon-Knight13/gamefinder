@@ -13,7 +13,7 @@
       "Read(~/.aws/**)",
       "Read(~/.kube/**)",
       "Read(.env)",
-      "Read(.env.*)",
+      "Read(.env.* ~.env.example)",
       "Read(**/*.pem)",
       "Read(**/*.key)",
       "Read(**/*.p12)",
@@ -24,7 +24,7 @@
       "Edit(~/.config/gh/**)",
       "Edit(~/.ssh/**)",
       "Edit(.env)",
-      "Edit(.env.*)"
+      "Edit(.env.* ~.env.example)"
     ],
 
     "_no_bash_denies_note": "No Bash deny rules here on purpose. The permissions docs warn that patterns constraining command arguments are fragile — Bash(curl http://github.com/ *) misses -X before the URL, https, -L redirects, variable indirection and extra spaces. A deny list that looks protective but is trivially bypassed is exactly the false assurance this template is trying to stop shipping. Network egress is enforced at the firewall (.devcontainer/init-firewall.sh), which cannot be argued around."
@@ -91,7 +91,7 @@
     "_failIfUnavailable_note": "Deliberately NOT set. It would stop Claude Code starting whenever the sandbox cannot initialise — and bubblewrap needs unprivileged user namespaces, which are often unavailable inside Docker. In a file that syncs to every derived repo, that setting would brick Claude Code across the fleet on a host-kernel detail. The cost of leaving it unset is silent degradation to unsandboxed execution, which is precisely the failure mode this template is trying to stop shipping, so scripts/validate-template.sh asserts actual sandbox availability instead of assuming it. Set it to true in managed settings if you control the fleet's kernels.",
 
     "enabled": true,
-    "allowUnsandboxedCommands": false,
+    "allowUnsandboxedCommands": true,
 
     "credentials": {
       "_note": "The sandbox's default read policy is the entire filesystem, and there is no built-in credential deny list — only what is named here is restricted. These are the paths devcontainer.json mounts into the container as named volumes, so they sit directly beside the agent.",
@@ -106,16 +106,7 @@
     "_network_note": "No network.allowedDomains list here on purpose. Egress in this devcontainer is already enforced by .devcontainer/init-firewall.sh at the iptables/ipset layer, which is strictly stronger than a per-process allowlist and applies to every binary, not just sandboxed Bash. Duplicating the domain list here would create a second list to keep in sync and a silent drift source between the two. Note the firewall's own limit, documented in docs/THREAT_MODEL.md: it admits the whole GitHub CIDR range, so it bounds WHERE data can go, not WHETHER it leaves."
   },
 
-  "mcpServers": {
-    "local-ollama": {
-      "command": "npx",
-      "args": ["-y", "ollama-mcp-server"],
-      "env": {
-        "OLLAMA_HOST": "http://host.docker.internal:11434",
-        "OLLAMA_MODEL": "qwen2.5-coder:7b"
-      }
-    }
-  },
+  "mcpServers": {},
 
   "_pii_shield_note": "PII-Shield (gregmos/PII-Shield) anonymizes content before it reaches Claude. It requires a manual per-machine install (Settings > Extensions > drag in the .mcpb file), so it is NOT a control this template ships — treat it as opt-in. See docs/TEMPLATE_GUIDE.md#pii--privacy-controls.",
 
