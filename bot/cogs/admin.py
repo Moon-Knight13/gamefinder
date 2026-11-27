@@ -363,9 +363,19 @@ class AdminCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
-        log.info("Removed from guild %s (%d) — scheduling data deletion", guild.name, guild.id)
-        # In production, schedule via APScheduler for 30 days out.
-        # For now, log the event. The purge job handles stale data.
+        log.info("Removed from guild %s (%d) — scheduling data deletion in 30 days", guild.name, guild.id)
+        if hasattr(self.bot, "_scheduler"):
+            from apscheduler.triggers.date import DateTrigger
+            run_date = datetime.datetime.now() + datetime.timedelta(days=30)
+            self.bot._scheduler.add_job(
+                self._delete_guild_data, DateTrigger(run_date=run_date),
+                args=[guild.id], id=f"guild_delete_{guild.id}",
+                replace_existing=True,
+            )
+
+    async def _delete_guild_data(self, guild_id: int) -> None:
+        log.info("Executing scheduled data deletion for guild %d", guild_id)
+        await queries.delete_guild_data(self.bot.db, guild_id)
 
 
 async def setup(bot: GameFinder) -> None:

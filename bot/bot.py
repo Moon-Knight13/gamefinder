@@ -65,6 +65,12 @@ class GameFinder(commands.Bot):
         log.info("GameFinder ready as %s (ID: %s)", self.user, self.user.id if self.user else "?")
         log.info("Guilds: %d", len(self.guilds))
         await self.setup_hook_error_handlers()
+
+        from bot.scheduler import setup_scheduler
+        self._scheduler = setup_scheduler(self)
+        self._scheduler.start()
+        log.info("Scheduler started (%d jobs)", len(self._scheduler.get_jobs()))
+
         for guild in self.guilds:
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
