@@ -1,0 +1,12 @@
+services:
+  gamefinder:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - bot-data:/app/data
+    environment:
+      - DB_PATH=/app/data/gamefinder.db
+
+volumes:
+  bot-data:

@@ -50,6 +50,36 @@ It does not bound **whether** data leaves: the allowlist admits the whole GitHub
 CIDR range, so `git push` is an accepted exfiltration path. The container is a
 host-protection boundary, not a data-containment one.
 
+## GameFinder Data Model
+
+GameFinder stores the following in a SQLite database:
+
+| Table | Contains | Sensitive? |
+|-------|----------|------------|
+| `guilds` | Server config (threshold, timezone, block hours) | No |
+| `users` | Discord user ID, timezone preference | Low — user IDs are public in Discord |
+| `availability` | User ID + date + block per guild | Low |
+| `games` | Game metadata, creator ID, slot info | Low |
+| `rsvps` | User RSVP status per game | Low |
+| `campaigns` | Recurring game config | No |
+| `campaign_roster` | Player membership in campaigns | Low |
+| `sessions` | Individual session dates and status | No |
+
+**Guild isolation guarantee:** Every query that reads or writes user data
+includes `guild_id` in its WHERE clause. A query missing `guild_id` is a
+security bug — it leaks another server's data.
+
+**Bot token handling:** The Discord bot token lives in `.env` on the
+deployment host only. It is never committed to the repository. The
+`.env.example` file contains only placeholder values.
+
+**Data deletion:**
+- Users: `/data delete` removes all user data immediately.
+- Guilds: data scheduled for deletion 30 days after bot removal.
+- Stale availability: auto-purged daily for dates outside forecast window.
+
+See [docs/PRIVACY_POLICY.md](docs/PRIVACY_POLICY.md) for the full privacy policy.
+
 ## Non-Goals
 
 The threat model states these in full. In short: prompt injection is not solved,

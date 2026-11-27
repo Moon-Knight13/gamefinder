@@ -11,6 +11,8 @@ Behavior is selected with MOCK_MODE:
 
 Other knobs: MOCK_MODEL (name in /api/tags), MOCK_CTX (context_length), MOCK_PORT.
 """
+
+import contextlib
 import json
 import os
 import time
@@ -38,10 +40,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        try:
+        with contextlib.suppress(BrokenPipeError):
             self.wfile.write(body)
-        except BrokenPipeError:
-            pass  # client (curl --max-time) gave up; expected in timeout tests
 
     def do_GET(self):
         if self.path == "/api/tags":
@@ -64,7 +64,7 @@ class Handler(BaseHTTPRequestHandler):
             if MODE == "slowgen" and not is_probe:
                 time.sleep(10)
             if MODE == "lowtps":
-                stats = {"eval_count": 2, "eval_duration": 1_000_000_000}   # 2 tps
+                stats = {"eval_count": 2, "eval_duration": 1_000_000_000}  # 2 tps
             else:
                 stats = {"eval_count": 100, "eval_duration": 2_000_000_000}  # 50 tps
             text = GENERATION_TEXT.get(MODE, "ready")

@@ -155,9 +155,7 @@ Replace template content with project-specific instructions: what this repo is (
 ```python
 async def test_tables_created(db):
     """All 8 tables exist after migration."""
-    rows = await db.fetch_all(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", ()
-    )
+    rows = await db.fetch_all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", ())
     names = [r["name"] for r in rows]
     assert "guilds" in names
     assert "users" in names
@@ -168,11 +166,18 @@ async def test_tables_created(db):
     assert "campaign_roster" in names
     assert "sessions" in names
 
+
 async def test_guild_isolation(db):
     """Queries for guild 1 never return guild 2 data."""
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
-    await queries.upsert_availability(db, guild_id=2, user_id=200, date="2026-12-01", block="evening")
-    rows = await queries.get_user_availability(db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-01")
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
+    await queries.upsert_availability(
+        db, guild_id=2, user_id=200, date="2026-12-01", block="evening"
+    )
+    rows = await queries.get_user_availability(
+        db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-01"
+    )
     assert len(rows) == 1
     assert rows[0]["user_id"] == 100
 ```
@@ -250,14 +255,17 @@ def test_block_to_utc_range_london():
     assert start == datetime(2026, 12, 1, 17, 0, tzinfo=timezone.utc)
     assert end == datetime(2026, 12, 1, 22, 0, tzinfo=timezone.utc)
 
+
 def test_block_to_utc_range_new_york():
     start, end = block_to_utc_range(date(2026, 12, 1), "evening", "America/New_York", BlockConfig())
     assert start == datetime(2026, 12, 1, 22, 0, tzinfo=timezone.utc)
     assert end == datetime(2026, 12, 2, 3, 0, tzinfo=timezone.utc)
 
+
 def test_utc_to_discord_timestamp():
     dt = datetime(2026, 12, 1, 17, 0, tzinfo=timezone.utc)
     assert utc_to_discord_timestamp(dt, "t") == "<t:1796148000:t>"
+
 
 def test_date_range_3_weeks():
     dates = date_range(date(2026, 12, 1), weeks=3)
@@ -265,10 +273,15 @@ def test_date_range_3_weeks():
     assert dates[0] == date(2026, 12, 1)
     assert dates[-1] == date(2026, 12, 21)
 
+
 def test_block_to_utc_range_dst_transition():
     """US clocks fall back Nov 1 2026. Evening block spans different UTC offsets before/after."""
-    start_before, _ = block_to_utc_range(date(2026, 10, 31), "evening", "America/New_York", BlockConfig())
-    start_after, _ = block_to_utc_range(date(2026, 11, 2), "evening", "America/New_York", BlockConfig())
+    start_before, _ = block_to_utc_range(
+        date(2026, 10, 31), "evening", "America/New_York", BlockConfig()
+    )
+    start_after, _ = block_to_utc_range(
+        date(2026, 11, 2), "evening", "America/New_York", BlockConfig()
+    )
     assert start_before != start_after  # UTC offset changed
 ```
 
@@ -312,29 +325,55 @@ git commit -m "feat: time block utilities with timezone conversion"
 `tests/test_availability.py`:
 ```python
 async def test_upsert_availability(db):
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
-    rows = await queries.get_user_availability(db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-01")
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
+    rows = await queries.get_user_availability(
+        db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-01"
+    )
     assert len(rows) == 1
     assert rows[0]["block"] == "evening"
 
+
 async def test_upsert_is_idempotent(db):
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
-    rows = await queries.get_user_availability(db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-01")
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
+    rows = await queries.get_user_availability(
+        db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-01"
+    )
     assert len(rows) == 1
 
+
 async def test_delete_availability(db):
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
-    await queries.delete_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
-    rows = await queries.get_user_availability(db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-01")
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
+    await queries.delete_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
+    rows = await queries.get_user_availability(
+        db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-01"
+    )
     assert len(rows) == 0
 
+
 async def test_clear_user_availability(db):
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-02", block="morning")
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-02", block="morning"
+    )
     await queries.clear_user_availability(db, guild_id=1, user_id=100)
-    rows = await queries.get_user_availability(db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-31")
+    rows = await queries.get_user_availability(
+        db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-31"
+    )
     assert len(rows) == 0
+
 
 async def test_set_and_get_timezone(db):
     await queries.ensure_user(db, user_id=100)
@@ -389,32 +428,55 @@ git commit -m "feat: availability collection with button grid and timezone suppo
 ```python
 async def test_availability_counts(db):
     for uid in [100, 101, 102]:
-        await queries.upsert_availability(db, guild_id=1, user_id=uid, date="2026-12-01", block="evening")
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="morning")
-    counts = await queries.get_availability_counts(db, guild_id=1, date_from="2026-12-01", date_to="2026-12-01")
+        await queries.upsert_availability(
+            db, guild_id=1, user_id=uid, date="2026-12-01", block="evening"
+        )
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="morning"
+    )
+    counts = await queries.get_availability_counts(
+        db, guild_id=1, date_from="2026-12-01", date_to="2026-12-01"
+    )
     evening = next(r for r in counts if r["block"] == "evening")
     morning = next(r for r in counts if r["block"] == "morning")
     assert evening["count"] == 3
     assert morning["count"] == 1
 
+
 async def test_available_users(db):
     for uid in [100, 101, 102]:
-        await queries.upsert_availability(db, guild_id=1, user_id=uid, date="2026-12-01", block="evening")
+        await queries.upsert_availability(
+            db, guild_id=1, user_id=uid, date="2026-12-01", block="evening"
+        )
     users = await queries.get_available_users(db, guild_id=1, date="2026-12-01", block="evening")
     assert {r["user_id"] for r in users} == {100, 101, 102}
 
+
 async def test_counts_respect_threshold(db):
     for uid in [100, 101]:
-        await queries.upsert_availability(db, guild_id=1, user_id=uid, date="2026-12-01", block="evening")
-    counts = await queries.get_availability_counts(db, guild_id=1, date_from="2026-12-01", date_to="2026-12-01")
+        await queries.upsert_availability(
+            db, guild_id=1, user_id=uid, date="2026-12-01", block="evening"
+        )
+    counts = await queries.get_availability_counts(
+        db, guild_id=1, date_from="2026-12-01", date_to="2026-12-01"
+    )
     evening = next(r for r in counts if r["block"] == "evening")
     assert evening["count"] == 2  # filtering by threshold is display-side, not query-side
 
+
 async def test_respondent_count(db):
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-02", block="morning")
-    await queries.upsert_availability(db, guild_id=1, user_id=101, date="2026-12-01", block="evening")
-    count = await queries.count_respondents(db, guild_id=1, date_from="2026-12-01", date_to="2026-12-31")
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-02", block="morning"
+    )
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=101, date="2026-12-01", block="evening"
+    )
+    count = await queries.count_respondents(
+        db, guild_id=1, date_from="2026-12-01", date_to="2026-12-31"
+    )
     assert count == 2  # 2 unique users, not 3 rows
 ```
 
@@ -424,6 +486,7 @@ async def test_respondent_count(db):
 def test_format_bar():
     assert format_bar(5, 10) == "🟩🟩🟩🟩🟩"
     assert format_bar(0, 10) == ""
+
 
 def test_format_bar_max():
     result = format_bar(15, 15)
@@ -479,16 +542,33 @@ git commit -m "feat: windows insights with ranked list and heatmap display"
 `tests/test_games.py`:
 ```python
 async def test_create_and_get_game(db):
-    game_id = await queries.create_game(db, guild_id=1, creator_id=100, title="Test Game",
-        description="A test", slot_date="2026-12-01", slot_block="evening", player_cap=5)
+    game_id = await queries.create_game(
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Test Game",
+        description="A test",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
+    )
     game = await queries.get_game(db, game_id=game_id, guild_id=1)
     assert game["title"] == "Test Game"
     assert game["player_cap"] == 5
     assert game["status"] == "open"
 
+
 async def test_rsvp_counts(db):
-    game_id = await queries.create_game(db, guild_id=1, creator_id=100, title="Test",
-        description="", slot_date="2026-12-01", slot_block="evening", player_cap=5)
+    game_id = await queries.create_game(
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Test",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
+    )
     await queries.upsert_rsvp(db, game_id=game_id, user_id=200, status="going")
     await queries.upsert_rsvp(db, game_id=game_id, user_id=201, status="going")
     await queries.upsert_rsvp(db, game_id=game_id, user_id=202, status="maybe")
@@ -497,20 +577,46 @@ async def test_rsvp_counts(db):
     assert counts["maybe"] == 1
     assert counts.get("not_going", 0) == 0
 
+
 async def test_rsvp_upsert_changes_status(db):
-    game_id = await queries.create_game(db, guild_id=1, creator_id=100, title="Test",
-        description="", slot_date="2026-12-01", slot_block="evening", player_cap=5)
+    game_id = await queries.create_game(
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Test",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
+    )
     await queries.upsert_rsvp(db, game_id=game_id, user_id=200, status="going")
     await queries.upsert_rsvp(db, game_id=game_id, user_id=200, status="not_going")
     counts = await queries.get_rsvp_counts(db, game_id=game_id)
     assert counts.get("going", 0) == 0
     assert counts["not_going"] == 1
 
+
 async def test_list_games_filters_by_guild(db):
-    await queries.create_game(db, guild_id=1, creator_id=100, title="Guild 1 Game",
-        description="", slot_date="2026-12-01", slot_block="evening", player_cap=5)
-    await queries.create_game(db, guild_id=2, creator_id=200, title="Guild 2 Game",
-        description="", slot_date="2026-12-01", slot_block="evening", player_cap=5)
+    await queries.create_game(
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Guild 1 Game",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
+    )
+    await queries.create_game(
+        db,
+        guild_id=2,
+        creator_id=200,
+        title="Guild 2 Game",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
+    )
     games = await queries.list_games(db, guild_id=1)
     assert len(games) == 1
     assert games[0]["title"] == "Guild 1 Game"
@@ -578,29 +684,52 @@ async def test_update_guild_config(db):
     assert config["threshold"] == 6
     assert config["forecast_weeks"] == 4
 
+
 async def test_delete_user_data(db):
     await queries.ensure_user(db, user_id=100)
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
     await queries.delete_user_data(db, user_id=100)
-    rows = await queries.get_user_availability(db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-31")
+    rows = await queries.get_user_availability(
+        db, guild_id=1, user_id=100, date_from="2026-12-01", date_to="2026-12-31"
+    )
     assert len(rows) == 0
     user_tz = await queries.get_user_timezone(db, user_id=100)
     assert user_tz is None
 
+
 async def test_purge_stale_availability(db):
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-11-01", block="evening")
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-11-01", block="evening"
+    )
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
     deleted = await queries.purge_stale_availability(db, guild_id=1, before_date="2026-11-30")
     assert deleted == 1
-    rows = await queries.get_user_availability(db, guild_id=1, user_id=100, date_from="2026-11-01", date_to="2026-12-31")
+    rows = await queries.get_user_availability(
+        db, guild_id=1, user_id=100, date_from="2026-11-01", date_to="2026-12-31"
+    )
     assert len(rows) == 1
     assert rows[0]["date"] == "2026-12-01"
 
+
 async def test_delete_guild_data(db):
     await queries.ensure_guild(db, guild_id=1)
-    await queries.upsert_availability(db, guild_id=1, user_id=100, date="2026-12-01", block="evening")
-    await queries.create_game(db, guild_id=1, creator_id=100, title="Test",
-        description="", slot_date="2026-12-01", slot_block="evening", player_cap=5)
+    await queries.upsert_availability(
+        db, guild_id=1, user_id=100, date="2026-12-01", block="evening"
+    )
+    await queries.create_game(
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Test",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
+    )
     await queries.delete_guild_data(db, guild_id=1)
     config = await queries.get_guild_config(db, guild_id=1)
     assert config is None

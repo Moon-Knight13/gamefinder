@@ -1,100 +1,141 @@
-# Claude Secure Template
+# GameFinder
 
-[![ci](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/ci.yml)
-[![semgrep](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/semgrep.yml/badge.svg?branch=main)](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/semgrep.yml)
-[![secret-scan](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/secret-scan.yml)
+[![ci](https://github.com/Moon-Knight13/gamefinder/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Moon-Knight13/gamefinder/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-A language-agnostic, production-ready template for Claude-first development. Provides secure defaults, AI task routing, BMAD workflow integration, and deterministic CI gates so you can focus on your project rather than its scaffolding.
+**A Discord bot that turns "when is everyone free?" into actual games.**
 
-## What's Included
+DMs post games and hope players show up. GameFinder flips this: players mark
+broad availability, the bot shows DMs when enough players are free, and games
+land in windows that actually work. Availability intelligence, not guesswork.
 
-- **AI routing** — routes low-risk work to a local Ollama model; escalates to Claude for security, architecture, and cross-cutting changes
-- **Security gates** — gitleaks secret scanning, semgrep SAST (including MITRE ATLAS AI/ML rules), Trivy container scanning, all enforced in CI
-- **BMAD workflow** — structured product → engineering planning via the `/bmad` skill
-- **Kanban orchestration** — a per-repo GitHub Project board where a human orchestrator hands work to Claude sessions or local models; agents claim issues collision-free via `/next-issue` and `/run-epic` (see [docs/KANBAN_WORKFLOW.md](docs/KANBAN_WORKFLOW.md))
-- **Devcontainer** — deny-by-default network firewall, pre-installed tooling, Claude CLI with mounted auth volume
-- **Agent guardrails** — `permissions.deny` over credential material, a Bash sandbox, and hooks that guard the harness's own config, label external issue/PR text as untrusted data, and scan files for secrets as they are written (see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md))
-- **Branch protection bootstrap** — one-command GitHub branch protection with required status checks
-- **Day-0 validation** — `/day0-check` walks you through every setup step with pass/fail output and remediation hints
+## How It Works
 
-## How it works
+```
+1. Players mark availability     /available
+2. Bot aggregates insights       /windows
+3. DMs post games in best slots  /game create
+4. Players RSVP                  Going / Maybe / Can't
+5. Bot handles the rest          Notifications, reminders, events
+```
 
-Work comes in as a board card, gets **routed** by risk — to a human, to Claude, or to a
-cheaper local model — and every change runs the same security gates before it merges. The
-whole loop runs inside a devcontainer whose network is deny-by-default.
+## Features
 
-📊 **[Open the visual overview →](https://moon-knight13.github.io/claude_template_repo/)** —
-a one-page briefing (for technical and non-technical readers) covering the devcontainer, the
-two engines, caveman token compression, and the CI gates. Served from
-[`docs/explainer/`](docs/explainer/index.html) via GitHub Pages; the page is self-contained,
-so you can also open the HTML locally.
+### Availability Collection
+- **Button grid** — tap to toggle Morning/Afternoon/Evening across 7 days
+- **Week navigation** — Prev/Next buttons, configurable forecast window (1–6 weeks)
+- **Calendar import** — attach .ics file, bot maps free periods to blocks
+- **Timezone support** — set once with `/timezone`, all times display locally
 
-- **Routing** derives from `scripts/route-model.sh`; the same Human/Claude/Local decision
-  shows up as the **Route** field on each board card.
-- **Gates are required, not advisory** — a red check blocks the merge (see
-  [`.github/workflows/`](.github/workflows/)). This assumes a reviewer other than the
-  author: with a single maintainer, required review is self-review and admins can bypass
-  protection.
-- **Caveman** trims Claude's prose to cut output tokens and surfaces a live per-session
-  token/cost tally in the statusline (see [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)).
+### Scheduling Intelligence
+- **Ranked windows** — slots sorted by available player count with green bar chart
+- **Weekly heatmap** — visual grid showing player density per slot
+- **Threshold filtering** — only show slots with enough players (configurable)
+- **Drill-down** — `/whofree Saturday Evening` lists who's available
 
-## Prerequisites
+### Game Posting & RSVP
+- **Three-tier RSVP** — Going / Maybe / Can't Make It (DMs need all three signals)
+- **Targeted notifications** — bot @-mentions players who marked that slot available
+- **Auto Discord Events** — created when Going reaches player cap
+- **Game management** — list, cancel, edit posted games
 
-- Docker + VS Code Dev Containers extension
-- Git with SSH access to GitHub
-- Claude Code CLI (authenticated before first session)
-- Optional: Ollama on host port 11434 for local model offload
+### Server Admin
+- **One-command setup** — `/setup` configures threshold, forecast, block hours, timezone
+- **Nudge** — prompt members to submit availability
+- **Stats** — response rate, top windows, games posted
+- **Data deletion** — `/data delete` for users, auto-cleanup on server removal
 
-See [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md) for the full setup guide including Caveman token compression and PII-Shield (which needs a manual per-machine install, so it is opt-in rather than something this template ships).
+## Commands
 
-> **Read [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) before relying on the security posture**, especially its non-goals. In particular: the devcontainer is a host-protection boundary, not a data-containment one. Its firewall allowlist admits the entire GitHub CIDR range, so `git push` is an accepted exfiltration path rather than a closed one.
+| Command | Description |
+|---------|-------------|
+| `/available` | Open availability grid |
+| `/available-clear` | Clear all your availability |
+| `/available-import` | Import from .ics calendar file |
+| `/timezone <tz>` | Set your timezone |
+| `/windows` | See best scheduling windows |
+| `/whofree <day> <block>` | List who's free for a slot |
+| `/game-create` | Post a new game |
+| `/games` | List upcoming games |
+| `/game-cancel <id>` | Cancel a game |
+| `/setup` | Configure server settings |
+| `/nudge` | Prompt for availability |
+| `/stats` | View server stats |
+| `/data-delete` | Delete all your data |
 
 ## Quick Start
 
-1. **Use this template** — click "Use this template" on GitHub, or clone and re-init:
-   ```bash
-   git clone <this-repo> my-project && cd my-project && rm -rf .git && git init
-   ```
+1. **Invite the bot** to your Discord server (invite link TBD)
+2. Run `/setup` to configure your server
+3. Members run `/available` to mark when they're free
+4. DMs check `/windows` and post games with `/game-create`
 
-2. **Open in devcontainer** — VS Code prompts to reopen; accept. The container installs all tooling automatically on start.
+## Self-Hosting
 
-3. **Complete day-0 setup** — two browser logins; everything else is applied automatically on container start:
-   ```bash
-   gh auth login --hostname github.com --git-protocol https --web -s project && gh auth setup-git
-   claude auth login
-   bash scripts/setup-day0.sh   # finishes the auth-gated bootstraps, prints status
-   ```
-   Verify anytime with `bash scripts/check-day0.sh` — or from Claude: `/day0-check`
+### Prerequisites
+- Python 3.12+
+- A Discord bot token ([create one here](https://discord.com/developers/applications))
 
-4. **Validate the template** — check structure, syntax, and security-control behaviour:
-   ```bash
-   bash scripts/validate-template.sh
-   ```
-   A green run means the files are well-formed, the credential deny rules are present,
-   every wired hook is executable, the harness guard both blocks governing files and
-   leaves ordinary ones alone, and routing refuses to send a high-risk security task to
-   the local model. It does **not** mean the open findings in
-   [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) are closed.
+### Docker (recommended)
 
-## Repository Structure
-
-```
-.claude/commands/    Claude Code skills (/bmad, /bmad-to-board, /next-issue, /run-epic, /day0-check, /route-task, /security-audit, /firewall-allow)
-.devcontainer/       Dev environment with deny-by-default firewall and pre-installed tooling
-.github/             Workflows (CI, secret scan, semgrep, container scan, weekly audit); issue & PR templates
-docs/                TEMPLATE_GUIDE.md, AI_ROUTING_POLICY.md, BMAD_WORKFLOW.md, KANBAN_WORKFLOW.md
-scripts/             Bootstrap (incl. board), routing, CI helpers, and template validator
+```bash
+git clone https://github.com/Moon-Knight13/gamefinder.git
+cd gamefinder
+cp .env.example .env
+# Edit .env — add your DISCORD_TOKEN
+docker compose up -d
 ```
 
-## Deriving a New Project
+### Local
 
-When you start a new project from this template:
+```bash
+git clone https://github.com/Moon-Knight13/gamefinder.git
+cd gamefinder
+pip install -e ".[dev]"
+cp .env.example .env
+# Edit .env — add your DISCORD_TOKEN
+python -m bot
+```
 
-1. Replace this `README.md` with your project README — describe what the project *is*, not the template it came from.
-2. Add `scripts/ci/lint-*.sh` and `scripts/ci/test-*.sh` for your language stack (see `scripts/ci/README.md`).
-3. Do the two day-0 logins (quick start step 3) — `scripts/setup-day0.sh` then fills CODEOWNERS, copies configs, applies branch protection, and creates the Kanban board (see [docs/KANBAN_WORKFLOW.md](docs/KANBAN_WORKFLOW.md)).
-4. Replace or remove `docs/explainer/` — it describes *this template*, not your project. If you keep a project explainer there, enable GitHub Pages to serve it (**Settings → Pages → Source: "GitHub Actions"**); the `pages` workflow publishes it on the next push. Leave Pages disabled if the page shouldn't be public.
+### Discord Bot Setup
+
+1. Create app at https://discord.com/developers/applications
+2. Bot page: Reset Token, save to `.env` as `DISCORD_TOKEN`
+3. OAuth2 scopes: `applications.commands` + `bot`
+4. Bot permissions: Send Messages, Embed Links, Create Events, Manage Threads
+5. Use Install Link to invite to your server
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest -v          # run tests
+ruff check .       # lint
+```
+
+## Architecture
+
+Single-process Python bot. No external services.
+
+- **discord.py 2.x** — slash commands, buttons, embeds, scheduled events
+- **SQLite (aiosqlite)** — persistence with WAL mode, guild-scoped queries
+- **APScheduler** — reminder and cleanup jobs
+- **icalendar** — .ics calendar import
+
+All times stored UTC, displayed via Discord `<t:unix:F>` timestamps.
+
+## Privacy
+
+See [docs/PRIVACY_POLICY.md](docs/PRIVACY_POLICY.md). In short: we store
+Discord user IDs, timezone preferences, and availability blocks. No message
+content, no emails, no tracking. Data is auto-purged and deletable on request.
+
+## Security
+
+See [SECURITY.md](SECURITY.md). Guild isolation is enforced at the query
+layer — every database query scopes by `guild_id`.
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
