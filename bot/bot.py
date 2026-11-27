@@ -25,6 +25,7 @@ class GameFinder(commands.Bot):
             "bot.cogs.availability",
             "bot.cogs.windows",
             "bot.cogs.games",
+            "bot.cogs.campaigns",
             "bot.cogs.admin",
         ]
         for module in cog_modules:
@@ -35,15 +36,35 @@ class GameFinder(commands.Bot):
                 log.exception("Failed to load cog: %s", module)
 
         from bot.cogs.games import RSVPView
+        from bot.cogs.campaigns import RosterView
 
         self.add_view(RSVPView(self.db))
+        self.add_view(RosterView(self.db))
 
         await self.tree.sync()
         log.info("Command tree synced (global)")
 
+    async def setup_hook_error_handlers(self) -> None:
+        @self.tree.error
+        async def on_app_command_error(
+            interaction: discord.Interaction, error: discord.app_commands.AppCommandError,
+        ) -> None:
+            log.exception("Command error in /%s", interaction.command.name if interaction.command else "unknown", exc_info=error)
+            msg = f"Something went wrong: {error}"
+            if len(msg) > 200:
+                msg = msg[:200] + "..."
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(msg, ephemeral=True)
+                else:
+                    await interaction.response.send_message(msg, ephemeral=True)
+            except discord.HTTPException:
+                pass
+
     async def on_ready(self) -> None:
         log.info("GameFinder ready as %s (ID: %s)", self.user, self.user.id if self.user else "?")
         log.info("Guilds: %d", len(self.guilds))
+        await self.setup_hook_error_handlers()
         for guild in self.guilds:
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)

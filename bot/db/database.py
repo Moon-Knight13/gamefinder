@@ -70,6 +70,15 @@ class Database:
                 DROP TABLE _rsvps_old;
             """)
             await self._conn.commit()
+        # v3: add session_count/sessions_completed to campaigns
+        col_check = await self._conn.execute("PRAGMA table_info(campaigns)")
+        cols = {r[1] for r in await col_check.fetchall()}
+        if "session_count" not in cols:
+            await self._conn.execute("ALTER TABLE campaigns ADD COLUMN session_count INTEGER NOT NULL DEFAULT 8")
+            await self._conn.execute("ALTER TABLE campaigns ADD COLUMN sessions_completed INTEGER NOT NULL DEFAULT 0")
+            await self._conn.execute("ALTER TABLE campaigns ADD COLUMN message_id INTEGER")
+            await self._conn.execute("ALTER TABLE campaigns ADD COLUMN channel_id INTEGER")
+            await self._conn.commit()
 
 
 _SCHEMA = """
@@ -119,7 +128,11 @@ CREATE TABLE IF NOT EXISTS campaigns (
     cadence_interval INTEGER NOT NULL DEFAULT 1,
     player_min INTEGER NOT NULL DEFAULT 3,
     player_max INTEGER NOT NULL DEFAULT 6,
+    session_count INTEGER NOT NULL DEFAULT 8,
+    sessions_completed INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed')),
+    message_id INTEGER,
+    channel_id INTEGER,
     started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (guild_id) REFERENCES guilds(guild_id),
     FOREIGN KEY (creator_id) REFERENCES users(user_id)

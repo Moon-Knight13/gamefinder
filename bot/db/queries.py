@@ -257,6 +257,59 @@ async def get_rsvp_counts(db: Database, game_id: int) -> dict[str, int]:
     return {row["status"]: row["count"] for row in rows}
 
 
+# --- Consistency analysis (campaign viability) ---
+
+
+async def get_consistent_players(
+    db: Database, guild_id: int, date_from: str, date_to: str, min_weeks: int = 3,
+) -> list[dict]:
+    """Find slots where the same players appear across multiple weeks.
+
+    Returns list of {weekday, block, consistent_count, total_weeks, players}
+    sorted by consistent_count descending.
+    """
+    rows = await db.fetch_all(
+        """
+        SELECT user_id, block,
+               CAST(strftime('%w', date) AS INTEGER) as weekday,
+               COUNT(DISTINCT date) as week_count
+        FROM availability
+        WHERE guild_id = ? AND date >= ? AND date <= ?
+        GROUP BY user_id, block, weekday
+        HAVING week_count >= ?
+        ORDER BY weekday, block
+        """,
+        (guild_id, date_from, date_to, min_weeks),
+    )
+
+    # Group by (weekday, block)
+    slots: dict[tuple[int, str], list[int]] = {}
+    for r in rows:
+        key = (r["weekday"], r["block"])
+        if key not in slots:
+            slots[key] = []
+        slots[key].append(r["user_id"])
+
+    # Calculate total weeks in range
+    from datetime import date as dt_date
+    d_from = dt_date.fromisoformat(date_from)
+    d_to = dt_date.fromisoformat(date_to)
+    total_weeks = max(1, (d_to - d_from).days // 7)
+
+    result = []
+    for (weekday, block), player_ids in slots.items():
+        result.append({
+            "weekday": weekday,
+            "block": block,
+            "consistent_count": len(player_ids),
+            "total_weeks": total_weeks,
+            "players": player_ids,
+        })
+
+    result.sort(key=lambda x: x["consistent_count"], reverse=True)
+    return result
+
+
 # --- Recurring availability ---
 
 
@@ -298,6 +351,89 @@ async def clear_user_recurring(db: Database, guild_id: int, user_id: int) -> Non
         "DELETE FROM recurring_availability WHERE guild_id = ? AND user_id = ?",
         (guild_id, user_id),
     )
+
+
+# --- Campaigns ---
+
+
+async def create_campaign(
+    db: Database, guild_id: int, creator_id: int, title: str, description: str,
+    day_of_week: int, block: str, session_count: int,
+    cadence: str = "weekly", player_min: int = 3, player_max: int = 6,
+) -> int:
+    await ensure_guild(db, guild_id)
+    await ensure_user(db, creator_id)
+    cursor = await db.execute(
+        """INSERT INTO campaigns (guild_id, creator_id, title, description,
+            day_of_week, block, cadence, session_count, player_min, player_max)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (guild_id, creator_id, title, description, day_of_week, block,
+         cadence, session_count, player_min, player_max),
+    )
+    return cursor.lastrowid
+
+
+async def get_campaign(db: Database, campaign_id: int, guild_id: int) -> dict | None:
+    row = await db.fetch_one(
+        "SELECT * FROM campaigns WHERE id = ? AND guild_id = ?",
+        (campaign_id, guild_id),
+    )
+    return dict(row) if row else None
+
+
+async def list_campaigns(db: Database, guild_id: int, status: str = "active") -> list[dict]:
+    rows = await db.fetch_all(
+        "SELECT * FROM campaigns WHERE guild_id = ? AND status = ? ORDER BY started_at DESC",
+        (guild_id, status),
+    )
+    return [dict(r) for r in rows]
+
+
+async def update_campaign(db: Database, campaign_id: int, guild_id: int, **kwargs: object) -> None:
+    allowed = {"title", "description", "status", "sessions_completed", "player_min",
+               "player_max", "session_count", "message_id", "channel_id"}
+    filtered = {k: v for k, v in kwargs.items() if k in allowed}
+    if not filtered:
+        return
+    sets = ", ".join(f"{k} = ?" for k in filtered)
+    vals = tuple(filtered.values()) + (campaign_id, guild_id)
+    await db.execute(f"UPDATE campaigns SET {sets} WHERE id = ? AND guild_id = ?", vals)
+
+
+async def add_to_roster(db: Database, campaign_id: int, user_id: int) -> bool:
+    """Add user to roster. Returns False if roster full."""
+    await ensure_user(db, user_id)
+    # Check cap
+    row = await db.fetch_one(
+        "SELECT player_max FROM campaigns WHERE id = ?", (campaign_id,)
+    )
+    if row:
+        roster = await db.fetch_one(
+            "SELECT COUNT(*) as count FROM campaign_roster WHERE campaign_id = ? AND status = 'active'",
+            (campaign_id,),
+        )
+        if roster and roster["count"] >= row["player_max"]:
+            return False
+    await db.execute(
+        "INSERT OR IGNORE INTO campaign_roster (campaign_id, user_id) VALUES (?, ?)",
+        (campaign_id, user_id),
+    )
+    return True
+
+
+async def remove_from_roster(db: Database, campaign_id: int, user_id: int) -> None:
+    await db.execute(
+        "UPDATE campaign_roster SET status = 'left' WHERE campaign_id = ? AND user_id = ?",
+        (campaign_id, user_id),
+    )
+
+
+async def get_roster(db: Database, campaign_id: int) -> list[dict]:
+    rows = await db.fetch_all(
+        "SELECT * FROM campaign_roster WHERE campaign_id = ? AND status = 'active' ORDER BY joined_at",
+        (campaign_id,),
+    )
+    return [dict(r) for r in rows]
 
 
 # --- Admin / data management ---

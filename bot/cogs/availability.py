@@ -71,6 +71,16 @@ class CalendarGrid(discord.ui.LayoutView):
         self.available: set[tuple[str, str]] = set()
         self.recurring: set[tuple[int, str]] = set()
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
+        log.exception("Calendar error", exc_info=error)
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(f"Error: {error}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"Error: {error}", ephemeral=True)
+        except discord.HTTPException:
+            pass
+
     async def build(self) -> None:
         self.clear_items()
         today = datetime.date.today()
@@ -274,6 +284,16 @@ class RecurringEditView(discord.ui.LayoutView):
         self.day = day
         self.week_offset = week_offset
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
+        log.exception("Recurring edit error", exc_info=error)
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(f"Error: {error}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"Error: {error}", ephemeral=True)
+        except discord.HTTPException:
+            pass
+
     async def build(self) -> None:
         self.clear_items()
         weekday = self.day.weekday()
@@ -387,6 +407,16 @@ class CustomHoursView(discord.ui.LayoutView):
         self.week_offset = week_offset
         self.start_hour: int | None = None
         self.end_hour: int | None = None
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
+        log.exception("Custom hours error", exc_info=error)
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(f"Error: {error}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"Error: {error}", ephemeral=True)
+        except discord.HTTPException:
+            pass
 
     async def build(self) -> None:
         self.clear_items()

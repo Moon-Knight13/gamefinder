@@ -49,12 +49,60 @@ def _format_rsvp_field(counts: dict[str, int]) -> str:
     return "  |  ".join(parts)
 
 
+async def create_game_event(bot, guild: discord.Guild, game: dict, game_id: int, guild_id: int) -> discord.ScheduledEvent | None:
+    """Create Discord Scheduled Event for a game at quorum. Returns event or None."""
+    db = bot.db
+    config = await queries.get_guild_config(db, guild_id)
+    if not config:
+        return None
+
+    server_tz = config["timezone"]
+    bc = BlockConfig(
+        morning_start=config["morning_start"], morning_end=config["morning_end"],
+        afternoon_start=config["afternoon_start"], afternoon_end=config["afternoon_end"],
+        evening_start=config["evening_start"], evening_end=config["evening_end"],
+    )
+
+    try:
+        start_dt, end_dt = block_to_utc_range(
+            datetime.date.fromisoformat(game["slot_date"]),
+            game["slot_block"], server_tz, bc,
+        )
+        event = await guild.create_scheduled_event(
+            name=game["title"],
+            description=game.get("description", ""),
+            start_time=start_dt,
+            end_time=end_dt,
+            entity_type=discord.EntityType.external,
+            privacy_level=discord.PrivacyLevel.guild_only,
+            location="Discord",
+        )
+        await queries.set_game_event_id(db, game_id, guild_id, event.id)
+        log.info("Created Discord event %d for game #%d", event.id, game_id)
+        return event
+    except discord.Forbidden:
+        log.warning("Missing permissions to create scheduled event for game #%d", game_id)
+    except Exception:
+        log.exception("Failed to create Discord event for game #%d", game_id)
+    return None
+
+
 class RSVPView(discord.ui.View):
     """Persistent five-tier RSVP buttons. Survives bot restarts."""
 
     def __init__(self, db: Database | None = None) -> None:
         super().__init__(timeout=None)
         self.db = db
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
+        log.exception("RSVP error", exc_info=error)
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(f"RSVP error: {error}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"RSVP error: {error}", ephemeral=True)
+        except discord.HTTPException:
+            pass
 
     @discord.ui.button(label="Going", style=discord.ButtonStyle.green, custom_id="rsvp:going", emoji="✅", row=0)
     async def going(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -121,76 +169,59 @@ class RSVPView(discord.ui.View):
         # Auto-close at quorum + create Discord event
         if going >= game["player_cap"] and game["status"] == "open":
             await queries.update_game_status(self.db, game_id, interaction.guild_id, "full")
-            await self._create_discord_event(interaction, game, game_id, counts)
-
-    async def _create_discord_event(
-        self,
-        interaction: discord.Interaction,
-        game: dict,
-        game_id: int,
-        counts: dict[str, int],
-    ) -> None:
-        guild = interaction.guild
-        if not guild:
-            return
-
-        config = await queries.get_guild_config(self.db, interaction.guild_id)
-        server_tz = config["timezone"] if config else "UTC"
-        bc = BlockConfig(
-            morning_start=config["morning_start"] if config else 9,
-            morning_end=config["morning_end"] if config else 12,
-            afternoon_start=config["afternoon_start"] if config else 12,
-            afternoon_end=config["afternoon_end"] if config else 17,
-            evening_start=config["evening_start"] if config else 17,
-            evening_end=config["evening_end"] if config else 22,
-        )
-
-        try:
-            start_dt, end_dt = block_to_utc_range(
-                datetime.date.fromisoformat(game["slot_date"]),
-                game["slot_block"],
-                server_tz,
-                bc,
-            )
-            event = await guild.create_scheduled_event(
-                name=game["title"],
-                description=game.get("description", ""),
-                start_time=start_dt,
-                end_time=end_dt,
-                entity_type=discord.EntityType.external,
-                privacy_level=discord.PrivacyLevel.guild_only,
-                location="Discord",
-            )
-            await queries.set_game_event_id(self.db, game_id, interaction.guild_id, event.id)
-
-            going_count = counts.get("going", 0)
-            channel = interaction.channel
-            if channel:
-                await channel.send(
-                    f"\U0001f389 **{game['title']}** reached quorum! "
-                    f"({going_count}/{game['player_cap']} Going)\n"
-                    f"Discord Event created — check the Events tab!"
+            if interaction.guild:
+                event = await create_game_event(
+                    interaction.client, interaction.guild, game, game_id, interaction.guild_id
                 )
-            log.info("Created Discord event %d for game #%d", event.id, game_id)
-        except discord.Forbidden:
-            log.warning("Missing permissions to create scheduled event for game #%d", game_id)
-        except Exception:
-            log.exception("Failed to create Discord event for game #%d", game_id)
+                if event:
+                    if interaction.channel:
+                        await interaction.channel.send(
+                            f"\U0001f389 **{game['title']}** reached quorum! "
+                            f"({going}/{game['player_cap']} Going) — Event created!"
+                        )
+                    # DM each Going player with event link
+                    rsvps = await queries.get_rsvps(self.db, game_id)
+                    for r in rsvps:
+                        if r["status"] == "going":
+                            try:
+                                member = interaction.guild.get_member(r["user_id"])
+                                if member:
+                                    await member.send(
+                                        f"\U0001f3b2 **{game['title']}** is confirmed!\n\n"
+                                        f"Click to join the Discord Event and get reminders:\n"
+                                        f"{event.url}"
+                                    )
+                            except discord.Forbidden:
+                                pass
 
     def _extract_game_id(self, message: discord.Message | None) -> int | None:
         if not message or not message.embeds:
             return None
         embed = message.embeds[0]
         if embed.footer and embed.footer.text:
-            parts = embed.footer.text.split("#")
-            if len(parts) >= 2 and parts[1].strip().isdigit():
-                return int(parts[1].strip())
+            import re
+            match = re.search(r"#(\d+)", embed.footer.text)
+            if match:
+                return int(match.group(1))
         return None
 
 
 class GamesCog(commands.Cog):
     def __init__(self, bot: GameFinder) -> None:
         self.bot = bot
+
+    async def cog_app_command_error(
+        self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError,
+    ) -> None:
+        log.exception("Games command error", exc_info=error)
+        msg = f"Error: {error}"[:200]
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+        except discord.HTTPException:
+            pass
 
     async def _get_guild_config(self, guild_id: int) -> dict:
         config = await queries.get_guild_config(self.bot.db, guild_id)
