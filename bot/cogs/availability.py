@@ -31,42 +31,53 @@ class AvailabilityGrid(discord.ui.View):
         self.guild_id = guild_id
         self.user_id = user_id
         self.week_offset = week_offset
+        self.page_half = 0
         self.selected: set[tuple[str, str]] = set()
 
     async def build(self) -> None:
         self.clear_items()
         start = datetime.date.today() + datetime.timedelta(weeks=self.week_offset)
-        dates = date_range(start, weeks=1)
+        all_dates = date_range(start, weeks=1)
 
         existing = await queries.get_user_availability(
             self.db,
             guild_id=self.guild_id,
             user_id=self.user_id,
-            date_from=dates[0].isoformat(),
-            date_to=dates[-1].isoformat(),
+            date_from=all_dates[0].isoformat(),
+            date_to=all_dates[-1].isoformat(),
         )
         self.selected = {(r["date"], r["block"]) for r in existing}
 
-        for day in dates:
+        # Show 4 days per page (rows 0-3), nav on row 4. page_half toggles 0-3 / 4-6.
+        page_start = self.page_half * 4
+        dates = all_dates[page_start : page_start + 4]
+
+        for i, day in enumerate(dates):
             for block in BLOCK_ORDER:
                 key = (day.isoformat(), block)
                 is_on = key in self.selected
-                label = f"{day.strftime('%a')} {BLOCK_LABELS[block]}"
+                label = f"{day.strftime('%a')} {BLOCK_LABELS[block][0]}"
                 style = discord.ButtonStyle.green if is_on else discord.ButtonStyle.grey
                 button = discord.ui.Button(
-                    label=label[:20],
+                    label=label,
                     style=style,
                     custom_id=f"avail:{self.guild_id}:{self.user_id}:{day.isoformat()}:{block}",
-                    row=BLOCK_ORDER.index(block),
+                    row=i,
                 )
                 button.callback = self._make_callback(day.isoformat(), block)
                 self.add_item(button)
 
-        prev_btn = discord.ui.Button(label="◀ Prev", style=discord.ButtonStyle.blurple, row=3)
+        nav_row = len(dates)
+        prev_btn = discord.ui.Button(label="◀ Prev", style=discord.ButtonStyle.blurple, row=nav_row)
         prev_btn.callback = self._prev_week
         self.add_item(prev_btn)
 
-        next_btn = discord.ui.Button(label="Next ▶", style=discord.ButtonStyle.blurple, row=3)
+        half_label = "Days 5-7 ▶" if self.page_half == 0 else "◀ Days 1-4"
+        half_btn = discord.ui.Button(label=half_label, style=discord.ButtonStyle.blurple, row=nav_row)
+        half_btn.callback = self._toggle_half
+        self.add_item(half_btn)
+
+        next_btn = discord.ui.Button(label="Next ▶", style=discord.ButtonStyle.blurple, row=nav_row)
         next_btn.callback = self._next_week
         self.add_item(next_btn)
 
@@ -88,8 +99,14 @@ class AvailabilityGrid(discord.ui.View):
 
         return callback
 
+    async def _toggle_half(self, interaction: discord.Interaction):
+        self.page_half = 1 - self.page_half
+        await self.build()
+        await interaction.response.edit_message(content=self._header(), view=self)
+
     async def _prev_week(self, interaction: discord.Interaction):
         self.week_offset = max(0, self.week_offset - 1)
+        self.page_half = 0
         await self.build()
         await interaction.response.edit_message(content=self._header(), view=self)
 
@@ -97,6 +114,7 @@ class AvailabilityGrid(discord.ui.View):
         config = await queries.get_guild_config(self.db, self.guild_id)
         max_weeks = (config["forecast_weeks"] if config else 3) - 1
         self.week_offset = min(max_weeks, self.week_offset + 1)
+        self.page_half = 0
         await self.build()
         await interaction.response.edit_message(content=self._header(), view=self)
 
