@@ -525,6 +525,29 @@ class CustomHoursView(discord.ui.LayoutView):
         await interaction.response.edit_message(view=grid)
 
 
+class _ConfirmClearView(discord.ui.View):
+    def __init__(self, db, guild_id: int, user_id: int) -> None:
+        super().__init__(timeout=60)
+        self.db = db
+        self.guild_id = guild_id
+        self.user_id = user_id
+
+    @discord.ui.button(label="Confirm Clear", style=discord.ButtonStyle.red, emoji="⚠️")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Not your request.", ephemeral=True)
+            return
+        await queries.clear_user_availability(self.db, self.guild_id, self.user_id)
+        await queries.clear_user_recurring(self.db, self.guild_id, self.user_id)
+        await interaction.response.edit_message(content="All availability cleared.", view=None)
+        self.stop()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.grey)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="Cancelled.", view=None)
+        self.stop()
+
+
 class AvailabilityCog(commands.Cog):
     def __init__(self, bot: GameFinder) -> None:
         self.bot = bot
@@ -539,9 +562,11 @@ class AvailabilityCog(commands.Cog):
 
     @app_commands.command(name="available-clear", description="Clear all your availability data")
     async def available_clear(self, interaction: discord.Interaction) -> None:
-        await queries.clear_user_availability(self.bot.db, interaction.guild_id, interaction.user.id)
-        await queries.clear_user_recurring(self.bot.db, interaction.guild_id, interaction.user.id)
-        await interaction.response.send_message("All availability cleared.", ephemeral=True)
+        confirm = _ConfirmClearView(self.bot.db, interaction.guild_id, interaction.user.id)
+        await interaction.response.send_message(
+            "⚠️ This will clear **all** your availability and recurring patterns. Cannot be undone.",
+            view=confirm, ephemeral=True,
+        )
 
     @app_commands.command(name="available-quick", description="Quick-set recurring availability")
     @app_commands.describe(day="Day of week", block="Time block", weeks="Weeks (default 4)")

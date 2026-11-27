@@ -395,6 +395,70 @@ class CampaignsCog(commands.Cog):
             f"Campaign #{campaign_id} ended.", ephemeral=True
         )
 
+    @app_commands.command(name="session-complete", description="Mark a campaign session as completed")
+    @app_commands.describe(campaign_id="Campaign ID number")
+    async def session_complete(self, interaction: discord.Interaction, campaign_id: int) -> None:
+        campaign = await queries.get_campaign(self.bot.db, campaign_id, interaction.guild_id)
+        if not campaign:
+            await interaction.response.send_message("Campaign not found.", ephemeral=True)
+            return
+        if campaign["creator_id"] != interaction.user.id:
+            await interaction.response.send_message(
+                "Only the creator can mark sessions.", ephemeral=True
+            )
+            return
+        if campaign["status"] != "active":
+            await interaction.response.send_message(
+                f"Campaign is {campaign['status']}.", ephemeral=True
+            )
+            return
+
+        new_count = campaign["sessions_completed"] + 1
+        await queries.update_campaign(
+            self.bot.db, campaign_id, interaction.guild_id, sessions_completed=new_count
+        )
+
+        if new_count >= campaign["session_count"]:
+            await queries.update_campaign(
+                self.bot.db, campaign_id, interaction.guild_id, status="completed"
+            )
+            roster = await queries.get_roster(self.bot.db, campaign_id)
+            config = await get_guild_config(self.bot.db, interaction.guild_id)
+            post_channel = interaction.channel
+            if config and config["scheduling_channel_id"]:
+                ch = interaction.guild.get_channel(config["scheduling_channel_id"])
+                if ch:
+                    post_channel = ch
+
+            mentions = " ".join(f"<@{r['user_id']}>" for r in roster[:15])
+            await post_channel.send(
+                f"\U0001f3c1 **{campaign['title']}** is complete! "
+                f"{new_count}/{campaign['session_count']} sessions done.\n{mentions}"
+            )
+            await interaction.response.send_message(
+                f"\U0001f3c1 Campaign #{campaign_id} complete! ({new_count}/{campaign['session_count']})",
+                ephemeral=True,
+            )
+        else:
+            # Update embed if exists
+            if campaign.get("message_id") and campaign.get("channel_id"):
+                try:
+                    channel = interaction.guild.get_channel(campaign["channel_id"])
+                    if channel:
+                        msg = await channel.fetch_message(campaign["message_id"])
+                        updated = await queries.get_campaign(self.bot.db, campaign_id, interaction.guild_id)
+                        roster = await queries.get_roster(self.bot.db, campaign_id)
+                        config = await get_guild_config(self.bot.db, interaction.guild_id)
+                        embed = _campaign_embed(updated, config, len(roster))
+                        await msg.edit(embed=embed)
+                except (discord.NotFound, discord.HTTPException):
+                    pass
+
+            await interaction.response.send_message(
+                f"✅ Session {new_count}/{campaign['session_count']} complete!",
+                ephemeral=True,
+            )
+
     @app_commands.command(name="campaign-pause", description="Pause/resume a campaign")
     @app_commands.describe(campaign_id="Campaign ID number")
     async def campaign_pause(self, interaction: discord.Interaction, campaign_id: int) -> None:
