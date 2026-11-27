@@ -1,0 +1,18 @@
+{
+  "_status": "SEED ONLY \u2014 NOT the active configuration. .claude/settings.json is now committed and template-owned: it carries the permissions.deny rules, sandbox config and hook wiring, and is what Claude Code actually reads. This example is kept because setup-day0.sh and validate-template.sh still reference it, and because it shows the MCP shape. Do not copy it over the real file \u2014 you would strip the security config. For per-repo customisation use .claude/settings.local.json, which is gitignored and never synced.",
+  "mcpServers": {
+    "local-ollama": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "ollama-mcp-server"
+      ],
+      "env": {
+        "OLLAMA_HOST": "http://host.docker.internal:11434",
+        "OLLAMA_MODEL": "qwen2.5-coder:7b"
+      }
+    }
+  },
+  "_pii_shield_note": "PII-Shield (gregmos/PII-Shield) anonymizes content before it reaches Claude. Install manually: Settings > Extensions > drag in the .mcpb file. See docs/TEMPLATE_GUIDE.md#pii--privacy-controls for details.",
+  "_statusline_note": "The caveman statusline badge is auto-configured by scripts/install-caveman.sh at container start into user-level settings (~/.claude/settings.json), because the plugin script lives at a hash-versioned cache path. Do not hardcode a statusLine here."
+}
