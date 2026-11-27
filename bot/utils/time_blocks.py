@@ -57,3 +57,31 @@ BLOCK_LABELS = {
 }
 
 BLOCK_ORDER = ["morning", "afternoon", "evening"]
+
+
+def slot_to_discord_time(
+    date_str: str,
+    block: str,
+    server_tz: str,
+    block_config: BlockConfig,
+) -> str:
+    """Format a slot as Discord timestamps that auto-localize for each viewer."""
+    d = datetime.date.fromisoformat(date_str)
+    start_dt, end_dt = block_to_utc_range(d, block, server_tz, block_config)
+    start_ts = utc_to_discord_timestamp(start_dt, "F")
+    end_ts = utc_to_discord_timestamp(end_dt, "t")
+    return f"{start_ts} to {end_ts}"
+
+
+def slot_to_discord_short(
+    date_str: str,
+    block: str,
+    server_tz: str,
+    block_config: BlockConfig,
+) -> str:
+    """Short Discord timestamp for ranked lists."""
+    d = datetime.date.fromisoformat(date_str)
+    start_dt, _ = block_to_utc_range(d, block, server_tz, block_config)
+    date_ts = utc_to_discord_timestamp(start_dt, "D")
+    time_ts = utc_to_discord_timestamp(start_dt, "t")
+    return f"{date_ts} {BLOCK_LABELS[block]} ({time_ts})"

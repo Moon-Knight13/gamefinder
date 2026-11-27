@@ -111,3 +111,60 @@ async def test_update_game_status(db):
     await queries.update_game_status(db, game_id=game_id, guild_id=1, status="cancelled")
     game = await queries.get_game(db, game_id=game_id, guild_id=1)
     assert game["status"] == "cancelled"
+
+
+async def test_rsvp_spectator_and_waitlist(db):
+    game_id = await queries.create_game(
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Test",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
+    )
+    await queries.upsert_rsvp(db, game_id=game_id, user_id=200, status="spectator")
+    await queries.upsert_rsvp(db, game_id=game_id, user_id=201, status="waitlist")
+    await queries.upsert_rsvp(db, game_id=game_id, user_id=202, status="going")
+    counts = await queries.get_rsvp_counts(db, game_id=game_id)
+    assert counts["spectator"] == 1
+    assert counts["waitlist"] == 1
+    assert counts["going"] == 1
+
+
+async def test_update_game_fields(db):
+    game_id = await queries.create_game(
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Original",
+        description="Old desc",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
+    )
+    await queries.update_game(
+        db, game_id=game_id, guild_id=1, title="Updated", player_cap=8
+    )
+    game = await queries.get_game(db, game_id=game_id, guild_id=1)
+    assert game["title"] == "Updated"
+    assert game["player_cap"] == 8
+    assert game["description"] == "Old desc"
+
+
+async def test_set_game_message(db):
+    game_id = await queries.create_game(
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Test",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
+    )
+    await queries.set_game_message(db, game_id=game_id, guild_id=1, message_id=999, channel_id=888)
+    game = await queries.get_game(db, game_id=game_id, guild_id=1)
+    assert game["message_id"] == 999
+    assert game["channel_id"] == 888

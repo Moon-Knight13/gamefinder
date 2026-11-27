@@ -11,9 +11,13 @@ if [[ -f "$PROJECT_DIR/.env" ]]; then
     set +a
 fi
 
-# mcp-discord reads DISCORD_TOKEN; use the observer bot token for MCP
-if [[ -n "${DISCORD_MCP_TOKEN:-}" ]]; then
-    export DISCORD_TOKEN="$DISCORD_MCP_TOKEN"
+# mcp-discord reads DISCORD_TOKEN; use the observer bot token for MCP.
+# DISCORD_MCP_TOKEN must be set explicitly — never fall through to the
+# GameFinder bot's DISCORD_TOKEN, which may carry higher privileges.
+if [[ -z "${DISCORD_MCP_TOKEN:-}" ]]; then
+    echo "FATAL: DISCORD_MCP_TOKEN not set. Refusing to start — will not fall through to DISCORD_TOKEN." >&2
+    exit 1
 fi
+export DISCORD_TOKEN="$DISCORD_MCP_TOKEN"
 
 exec "$@"

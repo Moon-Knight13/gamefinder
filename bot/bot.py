@@ -39,8 +39,12 @@ class GameFinder(commands.Bot):
         self.add_view(RSVPView(self.db))
 
         await self.tree.sync()
-        log.info("Command tree synced")
+        log.info("Command tree synced (global)")
 
     async def on_ready(self) -> None:
         log.info("GameFinder ready as %s (ID: %s)", self.user, self.user.id if self.user else "?")
         log.info("Guilds: %d", len(self.guilds))
+        for guild in self.guilds:
+            self.tree.copy_global_to(guild=guild)
+            synced = await self.tree.sync(guild=guild)
+            log.info("Guild sync %s: %d commands", guild.name, len(synced))

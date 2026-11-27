@@ -106,7 +106,16 @@
     "_network_note": "No network.allowedDomains list here on purpose. Egress in this devcontainer is already enforced by .devcontainer/init-firewall.sh at the iptables/ipset layer, which is strictly stronger than a per-process allowlist and applies to every binary, not just sandboxed Bash. Duplicating the domain list here would create a second list to keep in sync and a silent drift source between the two. Note the firewall's own limit, documented in docs/THREAT_MODEL.md: it admits the whole GitHub CIDR range, so it bounds WHERE data can go, not WHETHER it leaves."
   },
 
-  "mcpServers": {},
+  "mcpServers": {
+    "mcp-discord": {
+      "deny": [
+        "mcp__mcp-discord__delete_channel",
+        "mcp__mcp-discord__moderate_message",
+        "mcp__mcp-discord__add_role",
+        "mcp__mcp-discord__remove_role"
+      ]
+    }
+  },
 
   "_pii_shield_note": "PII-Shield (gregmos/PII-Shield) anonymizes content before it reaches Claude. It requires a manual per-machine install (Settings > Extensions > drag in the .mcpb file), so it is NOT a control this template ships — treat it as opt-in. See docs/TEMPLATE_GUIDE.md#pii--privacy-controls.",
 

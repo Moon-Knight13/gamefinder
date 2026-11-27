@@ -38,13 +38,22 @@ def format_heatmap(week_data: list[dict], threshold: int) -> str:
     return "\n".join(lines)
 
 
-def format_ranked_windows(windows: list[dict], threshold: int) -> str:
+def format_ranked_windows(
+    windows: list[dict],
+    threshold: int,
+    server_tz: str | None = None,
+    block_config=None,
+) -> str:
     lines = []
     for w in windows:
         count = w["count"]
         if count < threshold:
             continue
         bar = format_bar(count, count)
-        block_label = w["block"].capitalize()
-        lines.append(f"{bar}  {count}  {w['date']} · {block_label}")
+        if server_tz and block_config:
+            from bot.utils.time_blocks import slot_to_discord_short
+            slot_str = slot_to_discord_short(w["date"], w["block"], server_tz, block_config)
+        else:
+            slot_str = f"{w['date']} · {w['block'].capitalize()}"
+        lines.append(f"{bar}  {count}  {slot_str}")
     return "\n".join(lines) if lines else "No windows meet threshold."

@@ -10,7 +10,7 @@ from discord.ext import commands
 
 from bot.db import queries
 from bot.utils.formatting import format_heatmap, format_ranked_windows
-from bot.utils.time_blocks import BLOCK_LABELS, date_range
+from bot.utils.time_blocks import BLOCK_LABELS, BlockConfig, date_range, slot_to_discord_short
 
 if TYPE_CHECKING:
     from bot.bot import GameFinder
@@ -60,12 +60,40 @@ class WindowsCog(commands.Cog):
             self.bot.db, interaction.guild_id, date_from, date_to
         )
 
-        ranked = format_ranked_windows(counts, threshold)
+        bc = BlockConfig(
+            morning_start=config["morning_start"],
+            morning_end=config["morning_end"],
+            afternoon_start=config["afternoon_start"],
+            afternoon_end=config["afternoon_end"],
+            evening_start=config["evening_start"],
+            evening_end=config["evening_end"],
+        )
+        server_tz = config["timezone"]
+
+        ranked = format_ranked_windows(counts, threshold, server_tz, bc)
         heatmap = format_heatmap(counts, threshold)
+
+        suggestion = ""
+        viable = [w for w in counts if w["count"] >= threshold]
+        if viable:
+            best = viable[0]
+            best_slot = slot_to_discord_short(best["date"], best["block"], server_tz, bc)
+            suggestion = (
+                f"\n\U0001f4a1 **Suggestion:** Best slot is {best_slot} "
+                f"with {best['count']} players. Use `/game-create` to post there!"
+            )
+        elif counts:
+            best = counts[0]
+            best_slot = slot_to_discord_short(best["date"], best["block"], server_tz, bc)
+            suggestion = (
+                f"\n⚠️ No slots hit {threshold}+ players yet. "
+                f"Best so far: {best_slot} with {best['count']}. "
+                f"Try `/nudge` to boost responses!"
+            )
 
         embed = discord.Embed(
             title=f"\U0001f4ca Best Windows ({threshold}+ players)",
-            description=f"{respondents} responded\n\n**Ranked:**\n{ranked}",
+            description=f"{respondents} responded{suggestion}\n\n**Ranked:**\n{ranked}",
             color=discord.Color.green(),
         )
         embed.add_field(name="Heatmap", value=f"```\n{heatmap}\n```", inline=False)

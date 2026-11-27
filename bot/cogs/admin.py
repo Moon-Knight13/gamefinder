@@ -49,8 +49,9 @@ class AdminCog(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.describe(
         threshold="Minimum players to highlight a window (default 4)",
-        forecast_weeks="How many weeks ahead to show (1-6, default 3)",
+        forecast_weeks="How many weeks ahead to show (1-12, default 3)",
         timezone="Server timezone, e.g. America/New_York",
+        scheduling_channel="Channel for game posts and notifications",
         morning_start="Morning block start hour (0-23, default 9)",
         morning_end="Morning block end hour (default 12)",
         afternoon_start="Afternoon start (default 12)",
@@ -64,6 +65,7 @@ class AdminCog(commands.Cog):
         threshold: int | None = None,
         forecast_weeks: int | None = None,
         timezone: str | None = None,
+        scheduling_channel: discord.TextChannel | None = None,
         morning_start: int | None = None,
         morning_end: int | None = None,
         afternoon_start: int | None = None,
@@ -79,8 +81,8 @@ class AdminCog(commands.Cog):
             )
             return
 
-        if forecast_weeks is not None and not 1 <= forecast_weeks <= 6:
-            await interaction.response.send_message("forecast_weeks must be 1-6.", ephemeral=True)
+        if forecast_weeks is not None and not 1 <= forecast_weeks <= 12:
+            await interaction.response.send_message("forecast_weeks must be 1-12.", ephemeral=True)
             return
 
         kwargs = {}
@@ -90,6 +92,8 @@ class AdminCog(commands.Cog):
             kwargs["forecast_weeks"] = forecast_weeks
         if timezone is not None:
             kwargs["timezone"] = timezone
+        if scheduling_channel is not None:
+            kwargs["scheduling_channel_id"] = scheduling_channel.id
         if morning_start is not None:
             kwargs["morning_start"] = morning_start
         if morning_end is not None:
@@ -107,8 +111,10 @@ class AdminCog(commands.Cog):
             await queries.update_guild_config(self.bot.db, interaction.guild_id, **kwargs)
 
         config = await queries.get_guild_config(self.bot.db, interaction.guild_id)
+        channel_str = f"<#{config['scheduling_channel_id']}>" if config["scheduling_channel_id"] else "Any channel"
         await interaction.response.send_message(
             f"Server configured:\n"
+            f"- Scheduling channel: {channel_str}\n"
             f"- Threshold: {config['threshold']}\n"
             f"- Forecast: {config['forecast_weeks']} weeks\n"
             f"- Timezone: {config['timezone']}\n"

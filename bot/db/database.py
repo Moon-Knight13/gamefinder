@@ -44,6 +44,32 @@ class Database:
         assert self._conn is not None
         await self._conn.executescript(_SCHEMA)
         await self._conn.commit()
+        await self._run_migrations()
+
+    async def _run_migrations(self) -> None:
+        assert self._conn is not None
+        # v2: widen rsvps.status CHECK to include spectator + waitlist
+        # SQLite can't ALTER CHECK constraints, so recreate table if old schema
+        row = await self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='rsvps'"
+        )
+        result = await row.fetchone()
+        if result and "spectator" not in result[0]:
+            await self._conn.executescript("""
+                ALTER TABLE rsvps RENAME TO _rsvps_old;
+                CREATE TABLE rsvps (
+                    game_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    status TEXT NOT NULL CHECK (status IN ('going', 'maybe', 'not_going', 'spectator', 'waitlist')),
+                    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    PRIMARY KEY (game_id, user_id),
+                    FOREIGN KEY (game_id) REFERENCES games(id),
+                    FOREIGN KEY (user_id) REFERENCES users(user_id)
+                );
+                INSERT INTO rsvps SELECT * FROM _rsvps_old;
+                DROP TABLE _rsvps_old;
+            """)
+            await self._conn.commit()
 
 
 _SCHEMA = """
@@ -123,10 +149,23 @@ CREATE TABLE IF NOT EXISTS games (
 CREATE TABLE IF NOT EXISTS rsvps (
     game_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('going', 'maybe', 'not_going')),
+    status TEXT NOT NULL CHECK (status IN ('going', 'maybe', 'not_going', 'spectator', 'waitlist')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     PRIMARY KEY (game_id, user_id),
     FOREIGN KEY (game_id) REFERENCES games(id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS recurring_availability (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    weekday INTEGER NOT NULL,
+    block TEXT NOT NULL CHECK (block IN ('morning', 'afternoon', 'evening', 'custom')),
+    custom_start INTEGER,
+    custom_end INTEGER,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    PRIMARY KEY (guild_id, user_id, weekday, block),
+    FOREIGN KEY (guild_id) REFERENCES guilds(guild_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 

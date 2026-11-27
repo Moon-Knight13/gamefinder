@@ -206,6 +206,25 @@ async def set_game_event_id(db: Database, game_id: int, guild_id: int, event_id:
     )
 
 
+async def set_game_message(
+    db: Database, game_id: int, guild_id: int, message_id: int, channel_id: int
+) -> None:
+    await db.execute(
+        "UPDATE games SET message_id = ?, channel_id = ? WHERE id = ? AND guild_id = ?",
+        (message_id, channel_id, game_id, guild_id),
+    )
+
+
+async def update_game(db: Database, game_id: int, guild_id: int, **kwargs: object) -> None:
+    allowed = {"title", "description", "slot_date", "slot_block", "player_cap", "status"}
+    filtered = {k: v for k, v in kwargs.items() if k in allowed}
+    if not filtered:
+        return
+    sets = ", ".join(f"{k} = ?" for k in filtered)
+    vals = tuple(filtered.values()) + (game_id, guild_id)
+    await db.execute(f"UPDATE games SET {sets} WHERE id = ? AND guild_id = ?", vals)
+
+
 # --- RSVPs ---
 
 
@@ -236,6 +255,49 @@ async def get_rsvp_counts(db: Database, game_id: int) -> dict[str, int]:
         (game_id,),
     )
     return {row["status"]: row["count"] for row in rows}
+
+
+# --- Recurring availability ---
+
+
+async def set_recurring(
+    db: Database, guild_id: int, user_id: int, weekday: int, block: str,
+    custom_start: int | None = None, custom_end: int | None = None,
+) -> None:
+    await ensure_guild(db, guild_id)
+    await ensure_user(db, user_id)
+    await db.execute(
+        """INSERT OR REPLACE INTO recurring_availability
+           (guild_id, user_id, weekday, block, custom_start, custom_end)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (guild_id, user_id, weekday, block, custom_start, custom_end),
+    )
+
+
+async def delete_recurring(
+    db: Database, guild_id: int, user_id: int, weekday: int, block: str,
+) -> None:
+    await db.execute(
+        "DELETE FROM recurring_availability WHERE guild_id = ? AND user_id = ? AND weekday = ? AND block = ?",
+        (guild_id, user_id, weekday, block),
+    )
+
+
+async def get_user_recurring(
+    db: Database, guild_id: int, user_id: int,
+) -> list[dict]:
+    rows = await db.fetch_all(
+        "SELECT * FROM recurring_availability WHERE guild_id = ? AND user_id = ?",
+        (guild_id, user_id),
+    )
+    return [dict(r) for r in rows]
+
+
+async def clear_user_recurring(db: Database, guild_id: int, user_id: int) -> None:
+    await db.execute(
+        "DELETE FROM recurring_availability WHERE guild_id = ? AND user_id = ?",
+        (guild_id, user_id),
+    )
 
 
 # --- Admin / data management ---

@@ -14,10 +14,10 @@ mcp-discord needs its **own bot**, separate from GameFinder. Minimal permissions
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications) and create a new application (e.g. `gamefinder-mcp-observer`).
 2. Go to **Bot** tab. Click **Reset Token**, copy it, save it somewhere safe.
-3. Enable all three **Privileged Gateway Intents**:
-   - Presence Intent
-   - Server Members Intent
-   - Message Content Intent
+3. Enable only the **Privileged Gateway Intents** the server uses:
+   - Server Members Intent (required for `list_members`)
+   - Message Content Intent (required for `read_messages`)
+   - ~~Presence Intent~~ — **not needed**, do not enable
 4. Go to **OAuth2 > URL Generator**:
    - Scopes: `bot`
    - Bot Permissions: `Read Messages/View Channels`, `Send Messages`, `Read Message History`, `Add Reactions`
@@ -64,7 +64,7 @@ Wrapper loads `.env` → `DISCORD_MCP_TOKEN` becomes available → `.mcp.json` m
 
 **Server info:** `list_servers`, `get_server_info`, `get_channels`, `list_members`, `get_user_info`
 
-**Messages:** `send_message`, `read_messages`, `add_reaction`, `add_multiple_reactions`, `remove_reaction`, `moderate_message`
+**Messages:** `send_message`, `send_direct_message`, `read_messages`, `add_reaction`, `add_multiple_reactions`, `remove_reaction`, `moderate_message`
 
 **Channels:** `create_text_channel`, `delete_channel`
 
