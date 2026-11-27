@@ -287,14 +287,15 @@ class AdminCog(commands.Cog):
                     if r["status"] == "going" and r["user_id"] < 900000:
                         try:
                             member = interaction.guild.get_member(r["user_id"])
-                            if member:
-                                await member.send(
-                                    f"\U0001f3b2 **{game['title']}** is confirmed!\n\n"
-                                    f"Click to join the Discord Event and get reminders:\n"
-                                    f"{event.url}"
-                                )
-                        except Exception:
-                            pass
+                            if not member:
+                                member = await interaction.guild.fetch_member(r["user_id"])
+                            await member.send(
+                                f"\U0001f3b2 **{game['title']}** is confirmed!\n\n"
+                                f"Click to join the Discord Event and get reminders:\n"
+                                f"{event.url}"
+                            )
+                        except (Exception,):
+                            log.debug("Could not DM user %d", r["user_id"])
             else:
                 quorum_msg += " — Event creation failed (check bot permissions)"
 

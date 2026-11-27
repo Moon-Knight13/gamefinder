@@ -185,14 +185,15 @@ class RSVPView(discord.ui.View):
                         if r["status"] == "going":
                             try:
                                 member = interaction.guild.get_member(r["user_id"])
-                                if member:
-                                    await member.send(
-                                        f"\U0001f3b2 **{game['title']}** is confirmed!\n\n"
-                                        f"Click to join the Discord Event and get reminders:\n"
-                                        f"{event.url}"
-                                    )
-                            except discord.Forbidden:
-                                pass
+                                if not member:
+                                    member = await interaction.guild.fetch_member(r["user_id"])
+                                await member.send(
+                                    f"\U0001f3b2 **{game['title']}** is confirmed!\n\n"
+                                    f"Click to join the Discord Event and get reminders:\n"
+                                    f"{event.url}"
+                                )
+                            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                                log.debug("Could not DM user %d", r["user_id"])
 
     def _extract_game_id(self, message: discord.Message | None) -> int | None:
         if not message or not message.embeds:
