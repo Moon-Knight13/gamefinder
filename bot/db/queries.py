@@ -38,6 +38,8 @@ async def update_guild_config(db: Database, guild_id: int, **kwargs: object) -> 
         "evening_start",
         "evening_end",
         "scheduling_channel_id",
+        "widget_message_id",
+        "widget_channel_id",
         "timezone",
     }
     filtered = {k: v for k, v in kwargs.items() if k in allowed}

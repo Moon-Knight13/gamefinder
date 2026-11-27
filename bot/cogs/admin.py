@@ -189,6 +189,118 @@ class AdminCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="widget", description="Post a live stats widget that auto-updates")
+    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.describe(channel="Channel to post widget in (default: current)")
+    async def widget(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel | None = None,
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
+        target = channel or interaction.channel
+        embed = await self._build_widget_embed(interaction.guild_id)
+
+        # Remove old widget if exists
+        config = await queries.get_guild_config(self.bot.db, interaction.guild_id)
+        if config and config.get("widget_message_id") and config.get("widget_channel_id"):
+            try:
+                old_ch = interaction.guild.get_channel(config["widget_channel_id"])
+                if old_ch:
+                    old_msg = await old_ch.fetch_message(config["widget_message_id"])
+                    await old_msg.delete()
+            except (discord.NotFound, discord.HTTPException):
+                pass
+
+        msg = await target.send(embed=embed)
+        try:
+            await msg.pin()
+        except discord.HTTPException:
+            pass
+
+        await queries.update_guild_config(
+            self.bot.db, interaction.guild_id,
+            widget_message_id=msg.id, widget_channel_id=msg.channel.id,
+        )
+        await interaction.followup.send(
+            f"\U0001f4ca Widget posted in {target.mention}! Updates every hour.",
+            ephemeral=True,
+        )
+
+    async def _build_widget_embed(self, guild_id: int) -> discord.Embed:
+        config = await queries.get_guild_config(self.bot.db, guild_id)
+        if not config:
+            await queries.ensure_guild(self.bot.db, guild_id)
+            config = await queries.get_guild_config(self.bot.db, guild_id)
+
+        start = datetime.date.today()
+        dates = date_range(start, weeks=config["forecast_weeks"])
+        date_from = dates[0].isoformat()
+        date_to = dates[-1].isoformat()
+
+        stats = await queries.get_guild_stats(self.bot.db, guild_id, date_from, date_to)
+        games = await queries.list_games(self.bot.db, guild_id, status="open")
+        full_games = await queries.list_games(self.bot.db, guild_id, status="full")
+        campaigns = await queries.list_campaigns(self.bot.db, guild_id)
+
+        embed = discord.Embed(
+            title="\U0001f3b2 GameFinder Dashboard",
+            color=discord.Color.green(),
+            timestamp=datetime.datetime.now(datetime.UTC),
+        )
+
+        # Response rate
+        embed.add_field(
+            name="\U0001f4ca Availability",
+            value=f"**{stats['respondents']}** players responded\n{config['forecast_weeks']} week window",
+            inline=True,
+        )
+
+        # Games
+        embed.add_field(
+            name="\U0001f3b2 Games",
+            value=f"**{len(games)}** open\n**{len(full_games)}** confirmed\n**{stats['games_count']}** total",
+            inline=True,
+        )
+
+        # Campaigns
+        embed.add_field(
+            name="\U0001f3af Campaigns",
+            value=f"**{len(campaigns)}** active",
+            inline=True,
+        )
+
+        # Top windows
+        if stats["top_windows"]:
+            top = stats["top_windows"][:3]
+            lines = []
+            for w in top:
+                lines.append(f"• **{w['count']}** players — {w['date']} {w['block'].capitalize()}")
+            embed.add_field(
+                name="\U0001f525 Best Windows",
+                value="\n".join(lines),
+                inline=False,
+            )
+
+        # Upcoming games
+        if games:
+            game_lines = []
+            for g in games[:3]:
+                counts = await queries.get_rsvp_counts(self.bot.db, g["id"])
+                going = counts.get("going", 0)
+                game_lines.append(
+                    f"• **{g['title']}** — {g['slot_date']} "
+                    f"(✅ {going}/{g['player_cap']})"
+                )
+            embed.add_field(
+                name="\U0001f4c5 Upcoming Games",
+                value="\n".join(game_lines),
+                inline=False,
+            )
+
+        embed.set_footer(text="Auto-updates hourly • /available to participate")
+        return embed
+
     @app_commands.command(name="data-delete", description="Delete all your data from this bot")
     async def data_delete(self, interaction: discord.Interaction) -> None:
         view = ConfirmDeleteView(self.bot.db, interaction.user.id)

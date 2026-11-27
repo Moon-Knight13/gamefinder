@@ -79,6 +79,13 @@ class Database:
             await self._conn.execute("ALTER TABLE campaigns ADD COLUMN message_id INTEGER")
             await self._conn.execute("ALTER TABLE campaigns ADD COLUMN channel_id INTEGER")
             await self._conn.commit()
+        # v4: add widget columns to guilds
+        guild_check = await self._conn.execute("PRAGMA table_info(guilds)")
+        guild_cols = {r[1] for r in await guild_check.fetchall()}
+        if "widget_message_id" not in guild_cols:
+            await self._conn.execute("ALTER TABLE guilds ADD COLUMN widget_message_id INTEGER")
+            await self._conn.execute("ALTER TABLE guilds ADD COLUMN widget_channel_id INTEGER")
+            await self._conn.commit()
 
 
 _SCHEMA = """
@@ -93,6 +100,8 @@ CREATE TABLE IF NOT EXISTS guilds (
     evening_start INTEGER NOT NULL DEFAULT 17,
     evening_end INTEGER NOT NULL DEFAULT 22,
     scheduling_channel_id INTEGER,
+    widget_message_id INTEGER,
+    widget_channel_id INTEGER,
     timezone TEXT NOT NULL DEFAULT 'UTC',
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );

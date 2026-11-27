@@ -217,8 +217,8 @@
       </div>
       <div class="card">
         <span class="ic">&#x2705;</span>
-        <h3>Three-tier RSVP</h3>
-        <p>Going, Maybe, Can't Make It. "4 Going, 2 Maybe" is actionable. "6 Interested" is not. DMs need all three signals to plan prep.</p>
+        <h3>Five-tier RSVP</h3>
+        <p>Going, Maybe, Can't, Spectator, Waitlist. "4 Going, 2 Maybe" is actionable. DMs get the signal they need. Quorum auto-creates a Discord Event.</p>
       </div>
       <div class="card">
         <span class="ic">&#x1f30d;</span>
@@ -238,16 +238,24 @@
     <h2>What players and DMs can do</h2>
     <table class="cmd-table">
       <tr><th>Command</th><th>What it does</th></tr>
-      <tr><td>/available</td><td>Open the button grid to toggle Morning/Afternoon/Evening across 7 days</td></tr>
+      <tr><td>/available</td><td>Interactive V2 calendar grid — one-tap AM/MID/PM toggles, custom hours, recurring</td></tr>
+      <tr><td>/available-quick</td><td>Quick-set: "every Friday evening for 4 weeks"</td></tr>
       <tr><td>/available-clear</td><td>Reset all your availability data</td></tr>
       <tr><td>/available-import</td><td>Attach .ics file, bot maps free periods to blocks</td></tr>
       <tr><td>/timezone</td><td>Set your timezone (remembered across sessions)</td></tr>
-      <tr><td>/windows</td><td>Ranked list of best slots + weekly heatmap</td></tr>
+      <tr><td>/windows</td><td>Oneshot windows + campaign-viable slots with Post Game buttons</td></tr>
       <tr><td>/whofree</td><td>List who's available for a specific day and block</td></tr>
       <tr><td>/game-create</td><td>Post a game with title, slot, and player cap</td></tr>
-      <tr><td>/games</td><td>List upcoming games with RSVP counts</td></tr>
+      <tr><td>/game-edit</td><td>Edit title, description, date, block, or player cap</td></tr>
       <tr><td>/game-cancel</td><td>Cancel a game and notify RSVPs</td></tr>
-      <tr><td>/setup</td><td>Configure threshold, forecast window, block hours, timezone</td></tr>
+      <tr><td>/games</td><td>List games — filter by open, full, cancelled, or all</td></tr>
+      <tr><td>/campaign-create</td><td>Start a recurring campaign with session count (1–52)</td></tr>
+      <tr><td>/campaigns</td><td>List active campaigns with progress</td></tr>
+      <tr><td>/campaign-status</td><td>View campaign details, roster, and next sessions</td></tr>
+      <tr><td>/campaign-pause</td><td>Pause or resume a campaign</td></tr>
+      <tr><td>/campaign-end</td><td>End a campaign and notify roster</td></tr>
+      <tr><td>/setup</td><td>Configure scheduling channel, threshold, forecast window, block hours, timezone</td></tr>
+      <tr><td>/widget</td><td>Post a live stats dashboard that auto-updates hourly</td></tr>
       <tr><td>/nudge</td><td>Prompt members to submit availability</td></tr>
       <tr><td>/stats</td><td>Response rate, top windows, games posted</td></tr>
       <tr><td>/data-delete</td><td>Delete all your data immediately</td></tr>
@@ -266,19 +274,19 @@
         <div class="arch-inner">
           <div class="arch-row cog">
             <div class="ar-h">Cogs (slash commands)</div>
-            <div class="ar-d">availability.py, windows.py, games.py, admin.py — each handles one domain</div>
+            <div class="ar-d">availability.py, windows.py, games.py, campaigns.py, admin.py — each handles one domain</div>
           </div>
           <div class="arch-row util">
             <div class="ar-h">Utils</div>
-            <div class="ar-d">time_blocks.py (timezone math, block ranges), formatting.py (heatmap, bar charts)</div>
+            <div class="ar-d">time_blocks.py (timezone math), formatting.py (shared helpers, bar charts), scheduler.py (purge, reminders, widget updates)</div>
           </div>
           <div class="arch-row db">
             <div class="ar-h">Database layer</div>
-            <div class="ar-d">SQLite + WAL mode via aiosqlite. 8 tables, every query scoped by guild_id</div>
+            <div class="ar-d">SQLite + WAL mode via aiosqlite. 10 tables, every query scoped by guild_id. Auto-migration on startup</div>
           </div>
         </div>
       </div>
-      <p class="d-note">discord.py 2.x for slash commands, buttons, embeds, and scheduled events. APScheduler for reminders and auto-purge. icalendar for .ics import.</p>
+      <p class="d-note">discord.py 2.7+ with Components V2 (LayoutView, Container, Section) for rich interactive UI. APScheduler for reminders, auto-purge, and widget updates. icalendar for .ics import.</p>
     </div>
 
     <div class="dgram">
@@ -287,6 +295,7 @@
         <span class="chip">guilds</span>
         <span class="chip">users</span>
         <span class="chip">availability</span>
+        <span class="chip">recurring_availability</span>
         <span class="chip">games</span>
         <span class="chip">rsvps</span>
         <span class="chip">campaigns</span>
@@ -311,12 +320,12 @@
     <p class="eyebrow">The loop</p>
     <h2>From idea to game night</h2>
     <div class="life">
-      <div class="step"><h3>Mark</h3><p>Players tap availability blocks for the coming weeks.</p></div>
-      <div class="step"><h3>Insight</h3><p>Bot aggregates and ranks windows by player count.</p></div>
-      <div class="step"><h3>Post</h3><p>DM picks a viable slot and creates a game.</p></div>
-      <div class="step"><h3>Notify</h3><p>Bot @-mentions players who marked that slot.</p></div>
-      <div class="step"><h3>RSVP</h3><p>Going / Maybe / Can't — three signals for prep.</p></div>
-      <div class="step"><h3>Play</h3><p>Reminders fire, Discord Event created, game happens.</p></div>
+      <div class="step"><h3>Mark</h3><p>Players tap AM/MID/PM slots on a weekly calendar. Set recurring with one click.</p></div>
+      <div class="step"><h3>Insight</h3><p>Bot ranks oneshot windows and identifies campaign-viable weekly slots.</p></div>
+      <div class="step"><h3>Post</h3><p>DM hits Post Game — modal pops, game is live in seconds.</p></div>
+      <div class="step"><h3>Notify</h3><p>Bot @-mentions players whose availability matches the slot.</p></div>
+      <div class="step"><h3>RSVP</h3><p>Going / Maybe / Can't / Spectator / Waitlist — five signals for planning.</p></div>
+      <div class="step"><h3>Play</h3><p>Quorum hit — Discord Event created, Going players DM'd the link.</p></div>
     </div>
   </section>
 

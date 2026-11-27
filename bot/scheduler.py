@@ -29,6 +29,10 @@ def setup_scheduler(bot: GameFinder) -> AsyncIOScheduler:
         _game_day_pings, "cron", hour=10, minute=0,
         args=[bot], id="game_day_pings", replace_existing=True,
     )
+    scheduler.add_job(
+        _update_widgets, "interval", hours=1,
+        args=[bot], id="update_widgets", replace_existing=True,
+    )
 
     return scheduler
 
@@ -129,3 +133,35 @@ async def _game_day_pings(bot: GameFinder) -> None:
                 log.info("Posted day-of ping for game #%d", game["id"])
         except Exception:
             log.exception("Failed to send day pings for guild %d", guild.id)
+
+
+async def _update_widgets(bot: GameFinder) -> None:
+    """Update pinned stat widgets in all guilds."""
+    from bot.db import queries
+    import discord
+
+    for guild in bot.guilds:
+        try:
+            config = await queries.get_guild_config(bot.db, guild.id)
+            if not config or not config.get("widget_message_id"):
+                continue
+
+            channel = guild.get_channel(config["widget_channel_id"])
+            if not channel:
+                continue
+
+            try:
+                msg = await channel.fetch_message(config["widget_message_id"])
+            except discord.NotFound:
+                await queries.update_guild_config(
+                    bot.db, guild.id, widget_message_id=None, widget_channel_id=None
+                )
+                continue
+
+            admin_cog = bot.get_cog("AdminCog")
+            if admin_cog:
+                embed = await admin_cog._build_widget_embed(guild.id)
+                await msg.edit(embed=embed)
+                log.debug("Updated widget for guild %s", guild.name)
+        except Exception:
+            log.exception("Failed to update widget for guild %d", guild.id)
