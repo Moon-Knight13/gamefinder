@@ -7,6 +7,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ -f "$PROJECT_DIR/.env" ]]; then
     set -a
+    # shellcheck source=/dev/null
     source "$PROJECT_DIR/.env"
     set +a
 fi
