@@ -1,232 +1,359 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GameFinder — TTRPG scheduling intelligence for Discord</title>
+<title>GameFinder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-  :root {
-    --ground: #EEF1F4;
-    --surface: #F8FAFB;
-    --ink: #14171C;
-    --ink-soft: #47515C;
-    --steel: #3B4A5A;
-    --steel-soft: #8695A3;
-    --line: #D3DAE0;
-    --accent: #5865F2;
-    --accent-ink: #4752C4;
-    --green: #2D7D46;
-    --orange: #E67E22;
-    --radius: 10px;
-    --maxw: 68ch;
-    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
-    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, "Cascadia Code", monospace;
-    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --ground: #101318;
-      --surface: #171B22;
-      --ink: #E7ECF1;
-      --ink-soft: #9AA6B2;
-      --steel: #7C93A8;
-      --steel-soft: #5A6B7A;
-      --line: #262D36;
-      --accent: #7289DA;
-      --accent-ink: #99AAE0;
-      --green: #4FB08A;
-      --orange: #F0A050;
-    }
-  }
-  :root[data-theme="dark"] {
-    --ground: #101318;
-    --surface: #171B22;
-    --ink: #E7ECF1;
-    --ink-soft: #9AA6B2;
-    --steel: #7C93A8;
-    --steel-soft: #5A6B7A;
-    --line: #262D36;
+/* TTRPG scheduling intelligence — a tactile, game-night palette */
+:root {
+  --bg: #F5F3EE;
+  --surface: #FFFFFF;
+  --ink: #1A1D23;
+  --ink-soft: #5A5E6B;
+  --muted: #8B8F9E;
+  --line: #E0DDD6;
+  --accent: #5865F2;
+  --accent-soft: rgba(88, 101, 242, 0.1);
+  --green: #2D8B4E;
+  --green-soft: rgba(45, 139, 78, 0.08);
+  --amber: #D4760A;
+  --amber-soft: rgba(212, 118, 10, 0.08);
+  --red: #DC3545;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --display: 'Space Grotesk', system-ui, sans-serif;
+  --body: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1117;
+    --surface: #181B25;
+    --ink: #E8E6E1;
+    --ink-soft: #9B9EAA;
+    --muted: #64687A;
+    --line: #2A2D3A;
     --accent: #7289DA;
-    --accent-ink: #99AAE0;
-    --green: #4FB08A;
-    --orange: #F0A050;
+    --accent-soft: rgba(114, 137, 218, 0.12);
+    --green: #4ADE80;
+    --green-soft: rgba(74, 222, 128, 0.1);
+    --amber: #F59E0B;
+    --amber-soft: rgba(245, 158, 11, 0.1);
+    --red: #F87171;
+    color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1117;
+  --surface: #181B25;
+  --ink: #E8E6E1;
+  --ink-soft: #9B9EAA;
+  --muted: #64687A;
+  --line: #2A2D3A;
+  --accent: #7289DA;
+  --accent-soft: rgba(114, 137, 218, 0.12);
+  --green: #4ADE80;
+  --green-soft: rgba(74, 222, 128, 0.1);
+  --amber: #F59E0B;
+  --amber-soft: rgba(245, 158, 11, 0.1);
+  --red: #F87171;
+  color-scheme: dark;
+}
 
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--ground);
-    color: var(--ink);
-    font-family: var(--serif);
-    font-size: 18px;
-    line-height: 1.62;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
-  .eyebrow {
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--steel);
-    margin: 0 0 14px;
-  }
-  h1, h2, h3 { font-family: var(--sans); text-wrap: balance; line-height: 1.15; }
-  a { color: var(--accent-ink); text-underline-offset: 3px; text-decoration-thickness: 1px; }
-  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.page { max-width: 760px; margin: 0 auto; }
 
-  header { padding: clamp(56px, 10vw, 104px) 0 40px; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em;
-    color: var(--ink-soft);
-    border: 1px solid var(--line); border-radius: 999px;
-    padding: 5px 13px; margin-bottom: 26px;
-  }
-  .badge b { color: var(--accent); font-weight: 600; }
-  h1 {
-    margin: 0;
-    font-size: clamp(34px, 6.2vw, 58px);
-    font-weight: 680;
-    letter-spacing: -0.02em;
-  }
-  .lede {
-    margin: 22px 0 0;
-    font-size: clamp(19px, 2.6vw, 23px);
-    color: var(--ink-soft);
-    max-width: 60ch;
-  }
-  .lede .hl { color: var(--ink); border-bottom: 2px solid var(--accent); }
+/* Hero */
+.hero {
+  padding: clamp(60px, 12vw, 120px) 0 clamp(40px, 6vw, 60px);
+  text-align: center;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-soft);
+  border: 1px solid var(--accent); border-radius: 999px;
+  padding: 6px 16px; margin-bottom: 28px;
+}
+h1 {
+  font-family: var(--display);
+  font-size: clamp(32px, 7vw, 56px);
+  font-weight: 700; letter-spacing: -0.03em;
+  line-height: 1.1; margin: 0;
+  text-wrap: balance;
+}
+.hero-sub {
+  font-size: clamp(17px, 2.4vw, 20px);
+  color: var(--ink-soft); line-height: 1.6;
+  max-width: 52ch; margin: 20px auto 0;
+}
+.hero-sub strong { color: var(--ink); font-weight: 600; }
+.hero-links {
+  display: flex; gap: 12px; justify-content: center;
+  flex-wrap: wrap; margin-top: 32px;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--display); font-weight: 600; font-size: 15px;
+  padding: 12px 24px; border-radius: 8px;
+  text-decoration: none; transition: transform 0.15s;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-ghost {
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line);
+}
 
-  .board {
-    margin: 44px 0 8px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: clamp(22px, 4vw, 34px);
-  }
-  .board-cap { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--steel-soft); margin: 0 0 20px; }
-  .flow { display: grid; gap: 18px; }
-  .node {
-    border: 1px solid var(--line); border-radius: var(--radius);
-    background: var(--ground);
-    padding: 13px 16px;
-    font-family: var(--mono); font-size: 14px;
-  }
-  .node .k { display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--steel-soft); margin-bottom: 3px; }
-  .node.player { border-color: var(--green); border-left-width: 4px; }
-  .node.bot { border-color: var(--accent); border-left-width: 4px; }
-  .node.dm { border-color: var(--orange); border-left-width: 4px; }
-  .rail { text-align: center; color: var(--steel-soft); font-family: var(--mono); font-size: 18px; line-height: 1; }
-  @media (prefers-reduced-motion: no-preference) {
-    .flow > * { opacity: 0; transform: translateY(8px); animation: rise 0.5s ease forwards; }
-    .flow > *:nth-child(1){animation-delay:.05s} .flow > *:nth-child(2){animation-delay:.13s}
-    .flow > *:nth-child(3){animation-delay:.21s} .flow > *:nth-child(4){animation-delay:.29s}
-    .flow > *:nth-child(5){animation-delay:.37s} .flow > *:nth-child(6){animation-delay:.45s}
-    .flow > *:nth-child(7){animation-delay:.53s} .flow > *:nth-child(8){animation-delay:.61s}
-    @keyframes rise { to { opacity: 1; transform: none; } }
-  }
+/* Flow diagram */
+.flow-section { padding-block: 48px; }
+.flow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2px; counter-reset: step;
+}
+.flow-step {
+  background: var(--surface);
+  padding: 24px 20px;
+  position: relative;
+}
+.flow-step:first-child { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.flow-step:last-child { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+@media (min-width: 640px) {
+  .flow-step:first-child { border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
+  .flow-step:last-child { border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+}
+.flow-step::before {
+  counter-increment: step;
+  content: counter(step);
+  font-family: var(--display); font-weight: 700;
+  font-size: 28px; color: var(--accent);
+  opacity: 0.3; position: absolute;
+  top: 16px; right: 16px;
+}
+.flow-step h3 {
+  font-family: var(--display); font-size: 15px;
+  font-weight: 600; margin: 0 0 6px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.flow-step p {
+  margin: 0; font-size: 14px;
+  color: var(--ink-soft); line-height: 1.5;
+}
+.flow-step .role {
+  display: inline-block; font-family: var(--mono);
+  font-size: 10px; font-weight: 500;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 4px;
+  margin-bottom: 10px;
+}
+.role-player { background: var(--green-soft); color: var(--green); }
+.role-bot { background: var(--accent-soft); color: var(--accent); }
+.role-dm { background: var(--amber-soft); color: var(--amber); }
 
-  section { padding: 46px 0; border-top: 1px solid var(--line); }
-  section h2 { font-size: clamp(22px, 3.4vw, 29px); margin: 8px 0 4px; letter-spacing: -0.01em; }
-  .section-note { color: var(--ink-soft); margin: 0 0 26px; max-width: 58ch; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
-  .card h3 { font-size: 16px; margin: 0 0 7px; }
-  .card p { margin: 0; font-size: 15.5px; color: var(--ink-soft); line-height: 1.5; }
-  .card .ic { font-size: 24px; margin-bottom: 8px; display: block; }
+/* Section */
+section {
+  padding-block: 48px;
+  border-top: 1px solid var(--line);
+}
+.section-label {
+  font-family: var(--mono); font-size: 11px;
+  font-weight: 500; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted);
+  margin: 0 0 12px;
+}
+h2 {
+  font-family: var(--display);
+  font-size: clamp(22px, 4vw, 30px);
+  font-weight: 700; letter-spacing: -0.02em;
+  margin: 0 0 8px; text-wrap: balance;
+}
+.section-desc {
+  color: var(--ink-soft); font-size: 16px;
+  margin: 0 0 28px; max-width: 56ch;
+}
 
-  .cmd-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-  .cmd-table th { text-align: left; font-family: var(--sans); font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--steel-soft); padding: 8px 0; border-bottom: 2px solid var(--line); }
-  .cmd-table td { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15.5px; color: var(--ink-soft); }
-  .cmd-table td:first-child { font-family: var(--mono); font-size: 14px; color: var(--accent-ink); min-width: 170px; }
+/* Feature cards */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.feat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px;
+}
+.feat-icon {
+  font-size: 20px; margin-bottom: 10px;
+  display: block;
+}
+.feat h3 {
+  font-family: var(--display); font-size: 15px;
+  font-weight: 600; margin: 0 0 6px;
+}
+.feat p {
+  margin: 0; font-size: 14px;
+  color: var(--ink-soft); line-height: 1.5;
+}
 
-  .life { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; counter-reset: step; }
-  .step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; position: relative; }
-  .step::before {
-    counter-increment: step; content: counter(step, decimal-leading-zero);
-    font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 0.05em;
-  }
-  .step h3 { font-size: 15px; margin: 6px 0 4px; }
-  .step p { margin: 0; font-size: 13.5px; color: var(--ink-soft); line-height: 1.45; }
+/* Command table */
+.cmd-wrap { overflow-x: auto; margin-top: 20px; }
+table {
+  width: 100%; border-collapse: collapse;
+  font-size: 14px; min-width: 460px;
+}
+th {
+  text-align: left; font-family: var(--mono);
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); padding: 10px 0;
+  border-bottom: 2px solid var(--line);
+}
+td {
+  padding: 10px 0; border-bottom: 1px solid var(--line);
+  color: var(--ink-soft); vertical-align: top;
+}
+td:first-child {
+  font-family: var(--mono); font-size: 13px;
+  color: var(--accent); white-space: nowrap;
+  padding-right: 16px; min-width: 0;
+}
+.cmd-group {
+  font-family: var(--display); font-weight: 600;
+  font-size: 13px; color: var(--ink);
+  padding: 16px 0 6px; border: none;
+  letter-spacing: 0.02em;
+}
+.cmd-group td { border: none; }
 
-  .dgram { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: clamp(18px, 3.4vw, 26px); margin-top: 20px; }
-  .dgram-h { display: flex; align-items: baseline; gap: 10px; margin: 0 0 16px; flex-wrap: wrap; }
-  .dgram-h h3 { font-size: 17px; margin: 0; font-family: var(--sans); }
-  .dgram-h .path { font-family: var(--mono); font-size: 11.5px; color: var(--steel-soft); letter-spacing: 0.03em; }
-  .dgram p.d-note { margin: 14px 0 0; font-size: 14.5px; color: var(--ink-soft); }
-  .chiprow { display: flex; flex-wrap: wrap; gap: 7px; }
-  .chip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--ground); color: var(--ink-soft); }
+/* Architecture */
+.arch-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.arch-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  border-left: 3px solid var(--accent);
+}
+.arch-card.cog { border-left-color: var(--green); }
+.arch-card.db { border-left-color: var(--amber); }
+.arch-card h3 {
+  font-family: var(--mono); font-size: 12px;
+  font-weight: 500; letter-spacing: 0.06em;
+  text-transform: uppercase; margin: 0 0 6px;
+  color: var(--muted);
+}
+.arch-card p {
+  margin: 0; font-size: 14px;
+  color: var(--ink-soft); line-height: 1.5;
+}
+.chip-row {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 16px;
+}
+.chip {
+  font-family: var(--mono); font-size: 11px;
+  padding: 4px 10px; border: 1px solid var(--line);
+  border-radius: 6px; color: var(--muted);
+  background: var(--surface);
+}
 
-  .arch-box { border: 2px solid var(--accent); border-radius: 10px; padding: 16px; position: relative; }
-  .arch-box > .arch-lbl { position: absolute; top: -10px; left: 14px; background: var(--surface); padding: 0 8px; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--accent); }
-  .arch-inner { display: grid; gap: 10px; }
-  .arch-row { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
-  .arch-row .ar-h { font-family: var(--mono); font-size: 13px; font-weight: 600; }
-  .arch-row .ar-d { font-size: 13.5px; color: var(--ink-soft); margin-top: 4px; }
-  .arch-row.cog { border-left: 3px solid var(--green); }
-  .arch-row.db { border-left: 3px solid var(--orange); }
-  .arch-row.util { border-left: 3px solid var(--steel); }
-
-  footer { padding: 40px 0 72px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 15px; }
-  footer .docs { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 16px 0 24px; font-family: var(--mono); font-size: 13.5px; }
-  footer .fine { font-size: 12.5px; color: var(--steel-soft); font-family: var(--mono); }
-
-  @media (max-width: 560px) {
-    body { font-size: 17px; }
-    .cmd-table td:first-child { min-width: auto; }
-  }
+/* Footer */
+footer {
+  padding: 40px 0 60px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+footer a {
+  font-family: var(--mono); font-size: 13px;
+  color: var(--accent); text-decoration: none;
+  text-underline-offset: 3px;
+}
+footer a:hover { text-decoration: underline; }
+.footer-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+.footer-fine { font-size: 12px; color: var(--muted); font-family: var(--mono); }
 </style>
-</head>
-<body>
 
-<div class="wrap">
-  <header>
-    <span class="badge">TTRPG&nbsp;<b>scheduling</b>&nbsp;·&nbsp;Discord&nbsp;native</span>
-    <p class="eyebrow">GameFinder</p>
+<div class="page">
+  <div class="hero">
+    <span class="hero-badge">Discord native · TTRPG scheduling</span>
     <h1>Know when your players are free before you post the game.</h1>
-    <p class="lede">Players mark broad availability, the bot shows DMs when enough people
-      are free, and games land in <span class="hl">windows that actually work</span>.
-      One bot for the whole scheduling loop.</p>
-  </header>
+    <p class="hero-sub">Players mark broad availability. The bot shows DMs <strong>when enough people are free</strong>. Games land in windows that actually work. One bot for the whole scheduling loop.</p>
+    <div class="hero-links">
+      <a href="https://github.com/Moon-Knight13/gamefinder" class="btn btn-primary">View on GitHub</a>
+      <a href="https://github.com/Moon-Knight13/gamefinder/blob/main/docs/PROJECT.md" class="btn btn-ghost">Documentation</a>
+    </div>
+  </div>
 
-  <div class="board" aria-label="How scheduling flows through GameFinder">
-    <p class="board-cap">The scheduling loop</p>
-    <div class="flow">
-      <div class="node player"><span class="k">Players mark availability</span>/available — tap Morning / Afternoon / Evening across the week.</div>
-      <div class="rail" aria-hidden="true">&#9660;</div>
-      <div class="node bot"><span class="k">Bot aggregates insights</span>/windows — ranked slots, heatmap, response rate. Threshold-filtered.</div>
-      <div class="rail" aria-hidden="true">&#9660;</div>
-      <div class="node dm"><span class="k">DM posts a game</span>/game create — picks a viable window, sets player cap and details.</div>
-      <div class="rail" aria-hidden="true">&#9660;</div>
-      <div class="node bot"><span class="k">Bot notifies &amp; tracks RSVPs</span>@-mentions available players. Three-tier RSVP: Going / Maybe / Can't.</div>
-      <div class="rail" aria-hidden="true">&#9660;</div>
-      <div class="node player"><span class="k">Game happens</span>Reminders, Discord Event, prep summary for the DM.</div>
+  <div class="flow-section">
+    <div class="flow-grid">
+      <div class="flow-step">
+        <span class="role role-player">Player</span>
+        <h3>Mark</h3>
+        <p>Tap AM/MID/PM slots on an interactive calendar. Set recurring with one click.</p>
+      </div>
+      <div class="flow-step">
+        <span class="role role-bot">Bot</span>
+        <h3>Insight</h3>
+        <p>Ranks oneshot windows and identifies campaign-viable weekly slots.</p>
+      </div>
+      <div class="flow-step">
+        <span class="role role-dm">DM</span>
+        <h3>Post</h3>
+        <p>Hit Post Game — modal pops, game is live in seconds. Players pinged.</p>
+      </div>
+      <div class="flow-step">
+        <span class="role role-player">Player</span>
+        <h3>RSVP</h3>
+        <p>Going / Maybe / Can't / Spectator / Waitlist. Quorum triggers a Discord Event.</p>
+      </div>
     </div>
   </div>
 
   <section>
-    <p class="eyebrow">The problem</p>
-    <h2>Why this exists</h2>
-    <p class="section-note">Every scheduling bot optimizes for "find one best time for one event." GameFinder optimizes for "show me the landscape so I can make better decisions over time."</p>
-    <div class="cards">
-      <div class="card">
-        <span class="ic">&#x1f3b2;</span>
-        <h3>Availability intelligence</h3>
-        <p>Standing data, not one-off polls. DMs see which slots consistently have enough players before committing to a date.</p>
+    <p class="section-label">Why this exists</p>
+    <h2>Availability intelligence, not one-off polls</h2>
+    <p class="section-desc">Every scheduling bot optimizes for "find one best time for one event." GameFinder optimizes for "show me the landscape so I can make better decisions over time."</p>
+    <div class="features">
+      <div class="feat">
+        <span class="feat-icon">📅</span>
+        <h3>Components V2 Calendar</h3>
+        <p>Interactive weekly grid built with Discord's latest UI. One-tap toggles, custom hours, recurring patterns — all inside Discord.</p>
       </div>
-      <div class="card">
-        <span class="ic">&#x2705;</span>
+      <div class="feat">
+        <span class="feat-icon">🎯</span>
+        <h3>Oneshot + Campaign</h3>
+        <p>Combined view: best single dates for a oneshot, plus consistent weekly slots reliable for recurring campaigns.</p>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">✅</span>
         <h3>Five-tier RSVP</h3>
-        <p>Going, Maybe, Can't, Spectator, Waitlist. "4 Going, 2 Maybe" is actionable. DMs get the signal they need. Quorum auto-creates a Discord Event.</p>
+        <p>Going, Maybe, Can't, Spectator, Waitlist. Quorum auto-creates a Discord Event. Going players get a DM with the event link.</p>
       </div>
-      <div class="card">
-        <span class="ic">&#x1f30d;</span>
+      <div class="feat">
+        <span class="feat-icon">🌍</span>
         <h3>Timezone-native</h3>
-        <p>All times stored UTC, displayed in each viewer's local timezone via Discord timestamps. Set once, never think about it again.</p>
+        <p>All times use Discord timestamps — every player sees their own timezone automatically. Set once, never think about it again.</p>
       </div>
-      <div class="card">
-        <span class="ic">&#x1f6e1;</span>
+      <div class="feat">
+        <span class="feat-icon">🎲</span>
+        <h3>Post Game Modal</h3>
+        <p>See a viable window? One click opens a modal. Title, description, player cap — game is live in the scheduling channel with RSVP buttons.</p>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">🛡️</span>
         <h3>Privacy by design</h3>
         <p>Minimal data: Discord IDs, timezone, availability blocks. Auto-purged. Delete on request. Guild-isolated queries prevent cross-server leakage.</p>
       </div>
@@ -234,110 +361,91 @@
   </section>
 
   <section>
-    <p class="eyebrow">Commands</p>
+    <p class="section-label">Commands</p>
     <h2>What players and DMs can do</h2>
-    <table class="cmd-table">
-      <tr><th>Command</th><th>What it does</th></tr>
-      <tr><td>/available</td><td>Interactive V2 calendar grid — one-tap AM/MID/PM toggles, custom hours, recurring</td></tr>
-      <tr><td>/available-quick</td><td>Quick-set: "every Friday evening for 4 weeks"</td></tr>
-      <tr><td>/available-clear</td><td>Reset all your availability data</td></tr>
-      <tr><td>/available-import</td><td>Attach .ics file, bot maps free periods to blocks</td></tr>
-      <tr><td>/timezone</td><td>Set your timezone (remembered across sessions)</td></tr>
-      <tr><td>/windows</td><td>Oneshot windows + campaign-viable slots with Post Game buttons</td></tr>
-      <tr><td>/whofree</td><td>List who's available for a specific day and block</td></tr>
-      <tr><td>/game-create</td><td>Post a game with title, slot, and player cap</td></tr>
-      <tr><td>/game-edit</td><td>Edit title, description, date, block, or player cap</td></tr>
-      <tr><td>/game-cancel</td><td>Cancel a game and notify RSVPs</td></tr>
-      <tr><td>/games</td><td>List games — filter by open, full, cancelled, or all</td></tr>
-      <tr><td>/campaign-create</td><td>Start a recurring campaign with session count (1–52)</td></tr>
-      <tr><td>/campaigns</td><td>List active campaigns with progress</td></tr>
-      <tr><td>/campaign-status</td><td>View campaign details, roster, and next sessions</td></tr>
-      <tr><td>/campaign-pause</td><td>Pause or resume a campaign</td></tr>
-      <tr><td>/campaign-end</td><td>End a campaign and notify roster</td></tr>
-      <tr><td>/setup</td><td>Configure scheduling channel, threshold, forecast window, block hours, timezone</td></tr>
-      <tr><td>/widget</td><td>Post a live stats dashboard that auto-updates hourly</td></tr>
-      <tr><td>/nudge</td><td>Prompt members to submit availability</td></tr>
-      <tr><td>/stats</td><td>Response rate, top windows, games posted</td></tr>
-      <tr><td>/data-delete</td><td>Delete all your data immediately</td></tr>
-    </table>
+    <div class="cmd-wrap">
+      <table>
+        <tr><th>Command</th><th>What it does</th></tr>
+        <tr class="cmd-group"><td colspan="2">Players</td></tr>
+        <tr><td>/available</td><td>Interactive V2 calendar grid — one-tap AM/MID/PM toggles, custom hours, recurring</td></tr>
+        <tr><td>/available-quick</td><td>Quick-set: "every Friday evening for 4 weeks"</td></tr>
+        <tr><td>/available-import</td><td>Attach .ics file, bot maps free periods to blocks</td></tr>
+        <tr><td>/available-clear</td><td>Clear availability with confirmation</td></tr>
+        <tr><td>/timezone</td><td>Set your timezone (remembered across sessions)</td></tr>
+        <tr class="cmd-group"><td colspan="2">Dungeon Masters</td></tr>
+        <tr><td>/windows</td><td>Oneshot windows + campaign-viable slots with Post Game buttons</td></tr>
+        <tr><td>/whofree</td><td>List who's available for a specific day and block</td></tr>
+        <tr><td>/game-create</td><td>Post a game with title, slot, and player cap</td></tr>
+        <tr><td>/game-edit</td><td>Edit title, description, date, block, or player cap</td></tr>
+        <tr><td>/game-cancel</td><td>Cancel a game and notify RSVPs</td></tr>
+        <tr><td>/games</td><td>List games — filter by open, full, cancelled, or all</td></tr>
+        <tr><td>/campaign-create</td><td>Start a recurring campaign with session count (1–52)</td></tr>
+        <tr><td>/campaigns</td><td>List active campaigns with progress</td></tr>
+        <tr><td>/campaign-status</td><td>View campaign details, roster, and next sessions</td></tr>
+        <tr><td>/campaign-pause</td><td>Pause or resume a campaign</td></tr>
+        <tr><td>/campaign-end</td><td>End a campaign and notify roster</td></tr>
+        <tr><td>/session-complete</td><td>Mark a session done — progress bar updates, auto-completes at count</td></tr>
+        <tr class="cmd-group"><td colspan="2">Server Admin</td></tr>
+        <tr><td>/setup</td><td>Configure scheduling channel, threshold, forecast window, block hours, timezone</td></tr>
+        <tr><td>/widget</td><td>Post a live stats dashboard that auto-updates hourly</td></tr>
+        <tr><td>/nudge</td><td>Prompt members to submit availability</td></tr>
+        <tr><td>/stats</td><td>Response rate, top windows, games posted</td></tr>
+        <tr><td>/data-delete</td><td>Delete all your data immediately</td></tr>
+      </table>
+    </div>
   </section>
 
   <section>
-    <p class="eyebrow">Architecture</p>
+    <p class="section-label">Architecture</p>
     <h2>How it's built</h2>
-    <p class="section-note">Single-process Python bot. No external services. SQLite handles the scale.</p>
-
-    <div class="dgram">
-      <div class="dgram-h"><h3>Bot internals</h3></div>
-      <div class="arch-box">
-        <span class="arch-lbl">GameFinder Bot</span>
-        <div class="arch-inner">
-          <div class="arch-row cog">
-            <div class="ar-h">Cogs (slash commands)</div>
-            <div class="ar-d">availability.py, windows.py, games.py, campaigns.py, admin.py — each handles one domain</div>
-          </div>
-          <div class="arch-row util">
-            <div class="ar-h">Utils</div>
-            <div class="ar-d">time_blocks.py (timezone math), formatting.py (shared helpers, bar charts), scheduler.py (purge, reminders, widget updates)</div>
-          </div>
-          <div class="arch-row db">
-            <div class="ar-h">Database layer</div>
-            <div class="ar-d">SQLite + WAL mode via aiosqlite. 10 tables, every query scoped by guild_id. Auto-migration on startup</div>
-          </div>
-        </div>
+    <p class="section-desc">Single-process Python bot. No external services. SQLite handles the scale.</p>
+    <div class="arch-cards">
+      <div class="arch-card cog">
+        <h3>Cogs</h3>
+        <p>availability, windows, games, campaigns, admin — each handles one domain with slash commands and persistent views.</p>
       </div>
-      <p class="d-note">discord.py 2.7+ with Components V2 (LayoutView, Container, Section) for rich interactive UI. APScheduler for reminders, auto-purge, and widget updates. icalendar for .ics import.</p>
-    </div>
-
-    <div class="dgram">
-      <div class="dgram-h"><h3>Data model</h3></div>
-      <div class="chiprow">
-        <span class="chip">guilds</span>
-        <span class="chip">users</span>
-        <span class="chip">availability</span>
-        <span class="chip">recurring_availability</span>
-        <span class="chip">games</span>
-        <span class="chip">rsvps</span>
-        <span class="chip">campaigns</span>
-        <span class="chip">campaign_roster</span>
-        <span class="chip">sessions</span>
+      <div class="arch-card">
+        <h3>UI Layer</h3>
+        <p>discord.py 2.7+ Components V2: LayoutView, Container, Section for rich interactive calendar and windows.</p>
       </div>
-      <p class="d-note">Every table that holds user data includes guild_id. A query missing guild_id is a security bug. Availability uses a unique constraint on (guild_id, user_id, date, block) for safe concurrent upserts.</p>
-    </div>
-
-    <div class="dgram">
-      <div class="dgram-h"><h3>Deployment</h3></div>
-      <div class="chiprow">
-        <span class="chip">Oracle Cloud free tier ARM VM</span>
-        <span class="chip">Docker Compose</span>
-        <span class="chip">GitHub Actions SSH deploy</span>
+      <div class="arch-card db">
+        <h3>Database</h3>
+        <p>SQLite + WAL mode via aiosqlite. 10 tables, every query scoped by guild_id. Auto-migration on startup.</p>
       </div>
-      <p class="d-note">Bot connects outbound to Discord gateway. No exposed ports, no web server, no reverse proxy. Push to main triggers CI, then auto-deploys on green.</p>
     </div>
-  </section>
-
-  <section>
-    <p class="eyebrow">The loop</p>
-    <h2>From idea to game night</h2>
-    <div class="life">
-      <div class="step"><h3>Mark</h3><p>Players tap AM/MID/PM slots on a weekly calendar. Set recurring with one click.</p></div>
-      <div class="step"><h3>Insight</h3><p>Bot ranks oneshot windows and identifies campaign-viable weekly slots.</p></div>
-      <div class="step"><h3>Post</h3><p>DM hits Post Game — modal pops, game is live in seconds.</p></div>
-      <div class="step"><h3>Notify</h3><p>Bot @-mentions players whose availability matches the slot.</p></div>
-      <div class="step"><h3>RSVP</h3><p>Going / Maybe / Can't / Spectator / Waitlist — five signals for planning.</p></div>
-      <div class="step"><h3>Play</h3><p>Quorum hit — Discord Event created, Going players DM'd the link.</p></div>
+    <div class="chip-row">
+      <span class="chip">guilds</span>
+      <span class="chip">users</span>
+      <span class="chip">availability</span>
+      <span class="chip">recurring_availability</span>
+      <span class="chip">games</span>
+      <span class="chip">rsvps</span>
+      <span class="chip">campaigns</span>
+      <span class="chip">campaign_roster</span>
+      <span class="chip">sessions</span>
+    </div>
+    <div class="arch-cards" style="margin-top: 16px;">
+      <div class="arch-card">
+        <h3>Scheduler</h3>
+        <p>APScheduler: auto-purge stale availability, 24h game reminders, session-day pings, hourly widget updates.</p>
+      </div>
+      <div class="arch-card">
+        <h3>Testing</h3>
+        <p>61 tests: unit, BDD scenarios, stress tests. Factory generates realistic TTRPG parties with configurable archetypes.</p>
+      </div>
+      <div class="arch-card">
+        <h3>Deploy</h3>
+        <p>Oracle Cloud free tier ARM VM. Docker Compose. GitHub Actions CI. No exposed ports, no domain needed.</p>
+      </div>
     </div>
   </section>
 
   <footer>
-    <p style="margin:0 0 4px;font-family:var(--sans);font-weight:640;color:var(--ink)">Documentation</p>
-    <div class="docs">
-      <a href="https://github.com/Moon-Knight13/gamefinder">README.md</a>
-      <a href="https://github.com/Moon-Knight13/gamefinder/blob/main/docs/PRIVACY_POLICY.md">Privacy Policy</a>
+    <div class="footer-links">
+      <a href="https://github.com/Moon-Knight13/gamefinder">GitHub</a>
+      <a href="https://github.com/Moon-Knight13/gamefinder/blob/main/docs/PRIVACY_POLICY.md">Privacy</a>
       <a href="https://github.com/Moon-Knight13/gamefinder/blob/main/SECURITY.md">Security</a>
     </div>
-    <p class="fine">MIT License. This page is self-contained and works offline.</p>
+    <p class="footer-fine">MIT License · Self-contained · Works offline</p>
   </footer>
 </div>
-</body>
-</html>
