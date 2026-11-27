@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import datetime
 import logging
 from typing import TYPE_CHECKING
@@ -10,10 +11,14 @@ from discord.ext import commands
 
 from bot.db import queries
 from bot.utils.formatting import (
-    extract_id_from_footer, get_guild_config, make_block_config, ordinal,
+    extract_id_from_footer,
+    get_guild_config,
+    make_block_config,
 )
 from bot.utils.time_blocks import (
-    BLOCK_LABELS, BLOCK_ORDER, BlockConfig, block_to_utc_range, utc_to_discord_timestamp,
+    BLOCK_LABELS,
+    block_to_utc_range,
+    utc_to_discord_timestamp,
 )
 
 if TYPE_CHECKING:
@@ -27,8 +32,6 @@ CADENCE_LABELS = {"weekly": "Weekly", "biweekly": "Biweekly"}
 MAX_SESSIONS = 52
 
 
-
-
 def _next_weekday(weekday: int, after: datetime.date | None = None) -> datetime.date:
     d = after or datetime.date.today()
     while d.weekday() != weekday:
@@ -36,7 +39,9 @@ def _next_weekday(weekday: int, after: datetime.date | None = None) -> datetime.
     return d
 
 
-def _session_dates(start: datetime.date, weekday: int, cadence: str, count: int) -> list[datetime.date]:
+def _session_dates(
+    start: datetime.date, weekday: int, cadence: str, count: int
+) -> list[datetime.date]:
     dates = []
     d = _next_weekday(weekday, start)
     step = 14 if cadence == "biweekly" else 7
@@ -62,12 +67,19 @@ def _campaign_embed(campaign: dict, config: dict, roster_count: int) -> discord.
     filled = int((progress / total) * bar_len) if total > 0 else 0
     progress_bar = "\U0001f7e9" * filled + "⬜" * (bar_len - filled)
 
-    dates = _session_dates(datetime.date.today(), campaign["day_of_week"],
-                           campaign["cadence"], min(3, total - progress))
-    upcoming = "\n".join(
-        f"• {utc_to_discord_timestamp(block_to_utc_range(d, campaign['block'], server_tz, bc)[0], 'D')}"
-        for d in dates
+    dates = _session_dates(
+        datetime.date.today(),
+        campaign["day_of_week"],
+        campaign["cadence"],
+        min(3, total - progress),
     )
+    upcoming_parts = []
+    for d in dates:
+        ts = utc_to_discord_timestamp(
+            block_to_utc_range(d, campaign["block"], server_tz, bc)[0], "D"
+        )
+        upcoming_parts.append(f"• {ts}")
+    upcoming = "\n".join(upcoming_parts)
 
     embed = discord.Embed(
         title=f"\U0001f3af {campaign['title']}",
@@ -77,7 +89,7 @@ def _campaign_embed(campaign: dict, config: dict, roster_count: int) -> discord.
     embed.add_field(
         name="Schedule",
         value=f"{CADENCE_LABELS.get(campaign['cadence'], campaign['cadence'])} • "
-              f"Every **{day_name}** {s_ts}–{e_ts}",
+        f"Every **{day_name}** {s_ts}–{e_ts}",
         inline=False,
     )
     embed.add_field(
@@ -114,18 +126,24 @@ class RosterView(discord.ui.View):
         except discord.HTTPException:
             pass
 
-    @discord.ui.button(label="Join Roster", style=discord.ButtonStyle.green,
-                       custom_id="campaign:join", emoji="✅")
+    @discord.ui.button(
+        label="Join Roster", style=discord.ButtonStyle.green, custom_id="campaign:join", emoji="✅"
+    )
     async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._handle(interaction, "join")
 
-    @discord.ui.button(label="Leave", style=discord.ButtonStyle.red,
-                       custom_id="campaign:leave", emoji="\U0001f44b")
+    @discord.ui.button(
+        label="Leave", style=discord.ButtonStyle.red, custom_id="campaign:leave", emoji="\U0001f44b"
+    )
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._handle(interaction, "leave")
 
-    @discord.ui.button(label="Spectate", style=discord.ButtonStyle.grey,
-                       custom_id="campaign:spectate", emoji="\U0001f440")
+    @discord.ui.button(
+        label="Spectate",
+        style=discord.ButtonStyle.grey,
+        custom_id="campaign:spectate",
+        emoji="\U0001f440",
+    )
     async def spectate(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._handle(interaction, "spectate")
 
@@ -148,7 +166,8 @@ class RosterView(discord.ui.View):
             if len(roster) >= campaign["player_max"]:
                 await interaction.response.send_message(
                     f"Roster full ({campaign['player_max']}/{campaign['player_max']}). "
-                    f"You can Spectate instead.", ephemeral=True
+                    f"You can Spectate instead.",
+                    ephemeral=True,
                 )
                 return
             await queries.add_to_roster(self.db, campaign_id, interaction.user.id)
@@ -169,10 +188,8 @@ class RosterView(discord.ui.View):
         roster = await queries.get_roster(self.db, campaign_id)
         config = await get_guild_config(self.db, interaction.guild_id)
         embed = _campaign_embed(campaign, config, len(roster))
-        try:
+        with contextlib.suppress(discord.HTTPException):
             await interaction.message.edit(embed=embed)
-        except discord.HTTPException:
-            pass
 
     def _extract_id(self, message: discord.Message | None) -> int | None:
         if not message or not message.embeds:
@@ -185,7 +202,9 @@ class CampaignsCog(commands.Cog):
         self.bot = bot
 
     async def cog_app_command_error(
-        self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError,
+        self,
+        interaction: discord.Interaction,
+        error: discord.app_commands.AppCommandError,
     ) -> None:
         log.exception("Campaign command error", exc_info=error)
         msg = f"Error: {error}"[:200]
@@ -285,21 +304,29 @@ class CampaignsCog(commands.Cog):
             )
 
         await queries.update_campaign(
-            self.bot.db, campaign_id, interaction.guild_id,
-            message_id=msg.id, channel_id=msg.channel.id,
+            self.bot.db,
+            campaign_id,
+            interaction.guild_id,
+            message_id=msg.id,
+            channel_id=msg.channel.id,
         )
 
         # Ping consistent players for this slot
-        bc = make_block_config(config)
-        server_tz = config["timezone"]
+        make_block_config(config)
+        config["timezone"]
         today = datetime.date.today()
         forecast_end = (today + datetime.timedelta(weeks=config["forecast_weeks"])).isoformat()
 
         consistent = await queries.get_consistent_players(
-            self.bot.db, interaction.guild_id, today.isoformat(), forecast_end, min_weeks=3,
+            self.bot.db,
+            interaction.guild_id,
+            today.isoformat(),
+            forecast_end,
+            min_weeks=3,
         )
-        matching = [s for s in consistent
-                    if s["weekday"] == day.value and s["block"] == block.value]
+        matching = [
+            s for s in consistent if s["weekday"] == day.value and s["block"] == block.value
+        ]
 
         if matching and matching[0]["players"]:
             player_ids = matching[0]["players"]
@@ -391,11 +418,11 @@ class CampaignsCog(commands.Cog):
                 f"{completed} sessions completed.\n{mentions}"
             )
 
-        await interaction.response.send_message(
-            f"Campaign #{campaign_id} ended.", ephemeral=True
-        )
+        await interaction.response.send_message(f"Campaign #{campaign_id} ended.", ephemeral=True)
 
-    @app_commands.command(name="session-complete", description="Mark a campaign session as completed")
+    @app_commands.command(
+        name="session-complete", description="Mark a campaign session as completed"
+    )
     @app_commands.describe(campaign_id="Campaign ID number")
     async def session_complete(self, interaction: discord.Interaction, campaign_id: int) -> None:
         campaign = await queries.get_campaign(self.bot.db, campaign_id, interaction.guild_id)
@@ -433,10 +460,12 @@ class CampaignsCog(commands.Cog):
             mentions = " ".join(f"<@{r['user_id']}>" for r in roster[:15])
             await post_channel.send(
                 f"\U0001f3c1 **{campaign['title']}** is complete! "
-                f"{new_count}/{campaign['session_count']} sessions done.\n{mentions}"
+                f"{new_count}/{campaign['session_count']} sessions done.\n"
+                f"{mentions}"
             )
             await interaction.response.send_message(
-                f"\U0001f3c1 Campaign #{campaign_id} complete! ({new_count}/{campaign['session_count']})",
+                f"\U0001f3c1 Campaign #{campaign_id} complete! "
+                f"({new_count}/{campaign['session_count']})",
                 ephemeral=True,
             )
         else:
@@ -446,7 +475,9 @@ class CampaignsCog(commands.Cog):
                     channel = interaction.guild.get_channel(campaign["channel_id"])
                     if channel:
                         msg = await channel.fetch_message(campaign["message_id"])
-                        updated = await queries.get_campaign(self.bot.db, campaign_id, interaction.guild_id)
+                        updated = await queries.get_campaign(
+                            self.bot.db, campaign_id, interaction.guild_id
+                        )
                         roster = await queries.get_roster(self.bot.db, campaign_id)
                         config = await get_guild_config(self.bot.db, interaction.guild_id)
                         embed = _campaign_embed(updated, config, len(roster))
@@ -477,9 +508,7 @@ class CampaignsCog(commands.Cog):
             self.bot.db, campaign_id, interaction.guild_id, status=new_status
         )
         label = "resumed" if new_status == "active" else "paused"
-        await interaction.response.send_message(
-            f"Campaign #{campaign_id} {label}.", ephemeral=True
-        )
+        await interaction.response.send_message(f"Campaign #{campaign_id} {label}.", ephemeral=True)
 
 
 async def setup(bot: GameFinder) -> None:

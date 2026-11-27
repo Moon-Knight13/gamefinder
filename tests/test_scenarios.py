@@ -1,10 +1,10 @@
 """BDD-style scenario tests for GameFinder user stories."""
 
 import datetime
+import random
 
 from bot.db import queries
 from tests.factory import Factory
-
 
 # --- Scenario: Player marks availability and DM sees windows ---
 
@@ -19,9 +19,7 @@ async def test_player_availability_shows_in_windows(db):
 
     today = datetime.date.today()
     date_to = (today + datetime.timedelta(weeks=3)).isoformat()
-    counts = await queries.get_availability_counts(
-        db, f.guild_id, today.isoformat(), date_to
-    )
+    counts = await queries.get_availability_counts(db, f.guild_id, today.isoformat(), date_to)
     viable = [c for c in counts if c["count"] >= 3]
     assert len(viable) > 0, "Should have viable windows with 5 players"
 
@@ -35,9 +33,7 @@ async def test_windows_respect_threshold(db):
 
     today = datetime.date.today()
     date_to = (today + datetime.timedelta(weeks=2)).isoformat()
-    counts = await queries.get_availability_counts(
-        db, f.guild_id, today.isoformat(), date_to
-    )
+    counts = await queries.get_availability_counts(db, f.guild_id, today.isoformat(), date_to)
     # Max possible is 3 players, threshold is 4
     viable = [c for c in counts if c["count"] >= 4]
     assert len(viable) == 0
@@ -100,8 +96,9 @@ async def test_mixed_rsvp_types_all_tracked(db):
     spectators = [await f.create_player() for _ in range(3)]
     waitlisted = [await f.create_player() for _ in range(1)]
 
-    await f.rsvp_players(game_id, going=going, maybe=maybe,
-                         spectators=spectators, waitlist=waitlisted)
+    await f.rsvp_players(
+        game_id, going=going, maybe=maybe, spectators=spectators, waitlist=waitlisted
+    )
 
     counts = await queries.get_rsvp_counts(db, game_id)
     assert counts["going"] == 4
@@ -201,7 +198,7 @@ async def test_guild_isolation_availability(db):
     p1 = await f1.create_player()
     await queries.upsert_availability(db, 2001, p1.user_id, "2026-12-01", "evening")
 
-    today = datetime.date.today()
+    datetime.date.today()
     counts1 = await queries.get_availability_counts(db, 2001, "2026-12-01", "2026-12-01")
     counts2 = await queries.get_availability_counts(db, 2002, "2026-12-01", "2026-12-01")
     assert len(counts1) == 1
@@ -245,9 +242,7 @@ async def test_stress_many_players(db):
 
     today = datetime.date.today()
     date_to = (today + datetime.timedelta(weeks=4)).isoformat()
-    counts = await queries.get_availability_counts(
-        db, f.guild_id, today.isoformat(), date_to
-    )
+    counts = await queries.get_availability_counts(db, f.guild_id, today.isoformat(), date_to)
     assert len(counts) > 0
     top = counts[0]
     assert top["count"] >= 10
@@ -263,7 +258,7 @@ async def test_stress_many_games(db):
     game_ids = []
     for i in range(20):
         date = (datetime.date.today() + datetime.timedelta(days=i % 14)).isoformat()
-        gid = await f.create_game(dm, title=f"Game {i+1}", date=date, player_cap=5)
+        gid = await f.create_game(dm, title=f"Game {i + 1}", date=date, player_cap=5)
         game_ids.append(gid)
 
     # RSVP random players to random games
@@ -306,15 +301,13 @@ async def test_stress_concurrent_availability_updates(db):
     assert evening["count"] == 15
 
 
-import random
-
-
 # --- Testing gaps from review ---
 
 
 async def test_invalid_date_rejected(db):
     """validate_date returns None for bad input."""
     from bot.utils.formatting import validate_date
+
     assert validate_date("2026-12-05") == datetime.date(2026, 12, 5)
     assert validate_date("banana") is None
     assert validate_date("2026-13-01") is None
@@ -360,7 +353,7 @@ async def test_list_games_all_statuses(db):
     f = Factory(db, guild_id=5001)
     await f.setup_guild()
     dm = await f.create_player()
-    g1 = await f.create_game(dm, title="Open Game")
+    await f.create_game(dm, title="Open Game")
     g2 = await f.create_game(dm, title="Full Game")
     await queries.update_game_status(db, g2, 5001, "full")
     g3 = await f.create_game(dm, title="Cancelled Game")

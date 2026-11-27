@@ -144,9 +144,7 @@ async def test_update_game_fields(db):
         slot_block="evening",
         player_cap=5,
     )
-    await queries.update_game(
-        db, game_id=game_id, guild_id=1, title="Updated", player_cap=8
-    )
+    await queries.update_game(db, game_id=game_id, guild_id=1, title="Updated", player_cap=8)
     game = await queries.get_game(db, game_id=game_id, guild_id=1)
     assert game["title"] == "Updated"
     assert game["player_cap"] == 8
@@ -155,8 +153,14 @@ async def test_update_game_fields(db):
 
 async def test_rsvp_quorum_triggers_full(db):
     game_id = await queries.create_game(
-        db, guild_id=1, creator_id=100, title="Quorum Test",
-        description="", slot_date="2026-12-01", slot_block="evening", player_cap=3,
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Quorum Test",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=3,
     )
     for uid in [200, 201, 202]:
         await queries.upsert_rsvp(db, game_id=game_id, user_id=uid, status="going")
@@ -170,8 +174,14 @@ async def test_rsvp_quorum_triggers_full(db):
 
 async def test_mixed_rsvp_roles(db):
     game_id = await queries.create_game(
-        db, guild_id=1, creator_id=100, title="Mixed",
-        description="", slot_date="2026-12-01", slot_block="evening", player_cap=5,
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Mixed",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
     )
     await queries.upsert_rsvp(db, game_id=game_id, user_id=200, status="going")
     await queries.upsert_rsvp(db, game_id=game_id, user_id=201, status="going")
@@ -189,8 +199,14 @@ async def test_mixed_rsvp_roles(db):
 
 async def test_rsvp_change_going_to_waitlist(db):
     game_id = await queries.create_game(
-        db, guild_id=1, creator_id=100, title="Switch",
-        description="", slot_date="2026-12-01", slot_block="evening", player_cap=5,
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Switch",
+        description="",
+        slot_date="2026-12-01",
+        slot_block="evening",
+        player_cap=5,
     )
     await queries.upsert_rsvp(db, game_id=game_id, user_id=200, status="going")
     counts = await queries.get_rsvp_counts(db, game_id=game_id)
@@ -203,8 +219,14 @@ async def test_rsvp_change_going_to_waitlist(db):
 
 async def test_campaign_roster(db):
     campaign_id = await queries.create_campaign(
-        db, guild_id=1, creator_id=100, title="Test Campaign",
-        description="", day_of_week=4, block="evening", session_count=8,
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Test Campaign",
+        description="",
+        day_of_week=4,
+        block="evening",
+        session_count=8,
     )
     for uid in [200, 201, 202, 203]:
         await queries.add_to_roster(db, campaign_id, uid)
@@ -218,8 +240,14 @@ async def test_campaign_roster(db):
 
 async def test_campaign_lifecycle(db):
     campaign_id = await queries.create_campaign(
-        db, guild_id=1, creator_id=100, title="Lifecycle",
-        description="", day_of_week=5, block="evening", session_count=10,
+        db,
+        guild_id=1,
+        creator_id=100,
+        title="Lifecycle",
+        description="",
+        day_of_week=5,
+        block="evening",
+        session_count=10,
     )
     campaign = await queries.get_campaign(db, campaign_id, guild_id=1)
     assert campaign["status"] == "active"

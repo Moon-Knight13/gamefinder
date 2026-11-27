@@ -4,7 +4,7 @@ import datetime
 import re
 
 from bot.db import queries
-from bot.utils.time_blocks import BLOCK_LABELS, BlockConfig
+from bot.utils.time_blocks import BlockConfig
 
 
 async def get_guild_config(db, guild_id: int) -> dict:
@@ -17,16 +17,19 @@ async def get_guild_config(db, guild_id: int) -> dict:
 
 def make_block_config(config: dict) -> BlockConfig:
     return BlockConfig(
-        morning_start=config["morning_start"], morning_end=config["morning_end"],
-        afternoon_start=config["afternoon_start"], afternoon_end=config["afternoon_end"],
-        evening_start=config["evening_start"], evening_end=config["evening_end"],
+        morning_start=config["morning_start"],
+        morning_end=config["morning_end"],
+        afternoon_start=config["afternoon_start"],
+        afternoon_end=config["afternoon_end"],
+        evening_start=config["evening_start"],
+        evening_end=config["evening_end"],
     )
 
 
 def ordinal(n: int) -> str:
     if 11 <= n % 100 <= 13:
         return f"{n}th"
-    return f"{n}{['th','st','nd','rd','th','th','th','th','th','th'][n % 10]}"
+    return f"{n}{['th', 'st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th', 'th'][n % 10]}"
 
 
 def extract_id_from_footer(embed) -> int | None:
@@ -95,6 +98,7 @@ def format_ranked_windows(
         bar = format_bar(count, count)
         if server_tz and block_config:
             from bot.utils.time_blocks import slot_to_discord_short
+
             slot_str = slot_to_discord_short(w["date"], w["block"], server_tz, block_config)
         else:
             slot_str = f"{w['date']} · {w['block'].capitalize()}"

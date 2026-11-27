@@ -18,20 +18,39 @@ def setup_scheduler(bot: GameFinder) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler()
 
     scheduler.add_job(
-        _purge_stale_availability, "cron", hour=3, minute=0,
-        args=[bot], id="purge_stale", replace_existing=True,
+        _purge_stale_availability,
+        "cron",
+        hour=3,
+        minute=0,
+        args=[bot],
+        id="purge_stale",
+        replace_existing=True,
     )
     scheduler.add_job(
-        _game_reminders, "cron", hour=9, minute=0,
-        args=[bot], id="game_reminders", replace_existing=True,
+        _game_reminders,
+        "cron",
+        hour=9,
+        minute=0,
+        args=[bot],
+        id="game_reminders",
+        replace_existing=True,
     )
     scheduler.add_job(
-        _game_day_pings, "cron", hour=10, minute=0,
-        args=[bot], id="game_day_pings", replace_existing=True,
+        _game_day_pings,
+        "cron",
+        hour=10,
+        minute=0,
+        args=[bot],
+        id="game_day_pings",
+        replace_existing=True,
     )
     scheduler.add_job(
-        _update_widgets, "interval", hours=1,
-        args=[bot], id="update_widgets", replace_existing=True,
+        _update_widgets,
+        "interval",
+        hours=1,
+        args=[bot],
+        id="update_widgets",
+        replace_existing=True,
     )
 
     return scheduler
@@ -47,9 +66,7 @@ async def _purge_stale_availability(bot: GameFinder) -> None:
             if not config:
                 continue
             cutoff = datetime.date.today() - datetime.timedelta(days=1)
-            deleted = await queries.purge_stale_availability(
-                bot.db, guild.id, cutoff.isoformat()
-            )
+            deleted = await queries.purge_stale_availability(bot.db, guild.id, cutoff.isoformat())
             if deleted > 0:
                 log.info("Purged %d stale availability entries for guild %s", deleted, guild.name)
         except Exception:
@@ -84,7 +101,7 @@ async def _game_reminders(bot: GameFinder) -> None:
                     await creator.send(
                         f"\U0001f4cb **Prep reminder: {game['title']}** is tomorrow!\n\n"
                         f"✅ Going: {going}  |  \U0001f914 Maybe: {maybe}  |  ❌ Can't: {cant}\n"
-                        f"{'You have enough players!' if going >= game['player_cap'] else 'Below player cap — check Maybe responses.'}"
+                        f"{'Enough players!' if going >= game['player_cap'] else 'Below cap.'}"
                     )
                     log.info("Sent prep reminder for game #%d to %s", game["id"], creator)
                 except Exception:
@@ -137,8 +154,9 @@ async def _game_day_pings(bot: GameFinder) -> None:
 
 async def _update_widgets(bot: GameFinder) -> None:
     """Update pinned stat widgets in all guilds."""
-    from bot.db import queries
     import discord
+
+    from bot.db import queries
 
     for guild in bot.guilds:
         try:

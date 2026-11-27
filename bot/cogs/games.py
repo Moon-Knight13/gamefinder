@@ -11,9 +11,17 @@ from discord.ext import commands
 
 from bot.db import queries
 from bot.utils.formatting import (
-    extract_id_from_footer, get_guild_config, make_block_config, validate_date,
+    extract_id_from_footer,
+    get_guild_config,
+    make_block_config,
+    validate_date,
 )
-from bot.utils.time_blocks import BLOCK_LABELS, BlockConfig, block_to_utc_range, slot_to_discord_time
+from bot.utils.time_blocks import (
+    BLOCK_LABELS,
+    BlockConfig,
+    block_to_utc_range,
+    slot_to_discord_time,
+)
 
 if TYPE_CHECKING:
     from bot.bot import GameFinder
@@ -52,7 +60,9 @@ def _format_rsvp_field(counts: dict[str, int]) -> str:
     return "  |  ".join(parts)
 
 
-async def create_game_event(bot, guild: discord.Guild, game: dict, game_id: int, guild_id: int) -> discord.ScheduledEvent | None:
+async def create_game_event(
+    bot, guild: discord.Guild, game: dict, game_id: int, guild_id: int
+) -> discord.ScheduledEvent | None:
     """Create Discord Scheduled Event for a game at quorum. Returns event or None."""
     db = bot.db
     config = await queries.get_guild_config(db, guild_id)
@@ -61,15 +71,20 @@ async def create_game_event(bot, guild: discord.Guild, game: dict, game_id: int,
 
     server_tz = config["timezone"]
     bc = BlockConfig(
-        morning_start=config["morning_start"], morning_end=config["morning_end"],
-        afternoon_start=config["afternoon_start"], afternoon_end=config["afternoon_end"],
-        evening_start=config["evening_start"], evening_end=config["evening_end"],
+        morning_start=config["morning_start"],
+        morning_end=config["morning_end"],
+        afternoon_start=config["afternoon_start"],
+        afternoon_end=config["afternoon_end"],
+        evening_start=config["evening_start"],
+        evening_end=config["evening_end"],
     )
 
     try:
         start_dt, end_dt = block_to_utc_range(
             datetime.date.fromisoformat(game["slot_date"]),
-            game["slot_block"], server_tz, bc,
+            game["slot_block"],
+            server_tz,
+            bc,
         )
         event = await guild.create_scheduled_event(
             name=game["title"],
@@ -107,23 +122,49 @@ class RSVPView(discord.ui.View):
         except discord.HTTPException:
             pass
 
-    @discord.ui.button(label="Going", style=discord.ButtonStyle.green, custom_id="rsvp:going", emoji="✅", row=0)
+    @discord.ui.button(
+        label="Going", style=discord.ButtonStyle.green, custom_id="rsvp:going", emoji="✅", row=0
+    )
     async def going(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._handle_rsvp(interaction, "going")
 
-    @discord.ui.button(label="Maybe", style=discord.ButtonStyle.grey, custom_id="rsvp:maybe", emoji="\U0001f914", row=0)
+    @discord.ui.button(
+        label="Maybe",
+        style=discord.ButtonStyle.grey,
+        custom_id="rsvp:maybe",
+        emoji="\U0001f914",
+        row=0,
+    )
     async def maybe(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._handle_rsvp(interaction, "maybe")
 
-    @discord.ui.button(label="Can't Make It", style=discord.ButtonStyle.red, custom_id="rsvp:not_going", emoji="❌", row=0)
+    @discord.ui.button(
+        label="Can't Make It",
+        style=discord.ButtonStyle.red,
+        custom_id="rsvp:not_going",
+        emoji="❌",
+        row=0,
+    )
     async def not_going(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._handle_rsvp(interaction, "not_going")
 
-    @discord.ui.button(label="Spectator", style=discord.ButtonStyle.blurple, custom_id="rsvp:spectator", emoji="\U0001f440", row=1)
+    @discord.ui.button(
+        label="Spectator",
+        style=discord.ButtonStyle.blurple,
+        custom_id="rsvp:spectator",
+        emoji="\U0001f440",
+        row=1,
+    )
     async def spectator(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._handle_rsvp(interaction, "spectator")
 
-    @discord.ui.button(label="Waitlist", style=discord.ButtonStyle.grey, custom_id="rsvp:waitlist", emoji="\U0001f4cb", row=1)
+    @discord.ui.button(
+        label="Waitlist",
+        style=discord.ButtonStyle.grey,
+        custom_id="rsvp:waitlist",
+        emoji="\U0001f4cb",
+        row=1,
+    )
     async def waitlist(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._handle_rsvp(interaction, "waitlist")
 
@@ -164,7 +205,9 @@ class RSVPView(discord.ui.View):
             embed = interaction.message.embeds[0].copy()
             for i, field in enumerate(embed.fields):
                 if field.name == "RSVPs":
-                    embed.set_field_at(i, name="RSVPs", value=_format_rsvp_field(counts), inline=False)
+                    embed.set_field_at(
+                        i, name="RSVPs", value=_format_rsvp_field(counts), inline=False
+                    )
                     break
             with contextlib.suppress(discord.HTTPException):
                 await interaction.message.edit(embed=embed)
@@ -209,7 +252,9 @@ class GamesCog(commands.Cog):
         self.bot = bot
 
     async def cog_app_command_error(
-        self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError,
+        self,
+        interaction: discord.Interaction,
+        error: discord.app_commands.AppCommandError,
     ) -> None:
         log.exception("Games command error", exc_info=error)
         msg = f"Error: {error}"[:200]
@@ -310,7 +355,9 @@ class GamesCog(commands.Cog):
             )
 
         # Store message location for future edits
-        await queries.set_game_message(self.bot.db, game_id, interaction.guild_id, msg.id, msg.channel.id)
+        await queries.set_game_message(
+            self.bot.db, game_id, interaction.guild_id, msg.id, msg.channel.id
+        )
 
         # Ping available users
         available_users = await queries.get_available_users(
@@ -329,26 +376,30 @@ class GamesCog(commands.Cog):
 
     @app_commands.command(name="games", description="List games")
     @app_commands.describe(status="Filter by status (default: open)")
-    @app_commands.choices(status=[
-        app_commands.Choice(name="Open", value="open"),
-        app_commands.Choice(name="Full", value="full"),
-        app_commands.Choice(name="Cancelled", value="cancelled"),
-        app_commands.Choice(name="All", value="all"),
-    ])
+    @app_commands.choices(
+        status=[
+            app_commands.Choice(name="Open", value="open"),
+            app_commands.Choice(name="Full", value="full"),
+            app_commands.Choice(name="Cancelled", value="cancelled"),
+            app_commands.Choice(name="All", value="all"),
+        ]
+    )
     async def games_list(
-        self, interaction: discord.Interaction,
+        self,
+        interaction: discord.Interaction,
         status: app_commands.Choice[str] | None = None,
     ) -> None:
         filter_val = status.value if status else "open"
         games = await queries.list_games(
-            self.bot.db, interaction.guild_id,
+            self.bot.db,
+            interaction.guild_id,
             status=None if filter_val == "all" else filter_val,
         )
         if not games:
             await interaction.response.send_message(f"No {filter_val} games.", ephemeral=True)
             return
 
-        config = await get_guild_config(self.bot.db,interaction.guild_id)
+        config = await get_guild_config(self.bot.db, interaction.guild_id)
         bc = make_block_config(config)
 
         lines = []
@@ -357,7 +408,10 @@ class GamesCog(commands.Cog):
             going = counts.get("going", 0)
             maybe = counts.get("maybe", 0)
             from bot.utils.time_blocks import slot_to_discord_short
-            slot_str = slot_to_discord_short(g["slot_date"], g["slot_block"], config["timezone"], bc)
+
+            slot_str = slot_to_discord_short(
+                g["slot_date"], g["slot_block"], config["timezone"], bc
+            )
             status_icon = "\U0001f7e2" if g["status"] == "open" else "\U0001f534"
             lines.append(
                 f"{status_icon} **#{g['id']}** {g['title']} — {slot_str} "
@@ -468,9 +522,11 @@ class GamesCog(commands.Cog):
         # Update original message if we have its location
         if game.get("message_id") and game.get("channel_id"):
             try:
-                config = await get_guild_config(self.bot.db,interaction.guild_id)
+                config = await get_guild_config(self.bot.db, interaction.guild_id)
                 bc = make_block_config(config)
-                when_str = slot_to_discord_time(game["slot_date"], game["slot_block"], config["timezone"], bc)
+                when_str = slot_to_discord_time(
+                    game["slot_date"], game["slot_block"], config["timezone"], bc
+                )
 
                 channel = interaction.guild.get_channel(game["channel_id"])
                 if channel:
@@ -482,10 +538,14 @@ class GamesCog(commands.Cog):
                     )
                     embed.add_field(name="When", value=when_str, inline=False)
                     embed.add_field(name="Player Cap", value=str(game["player_cap"]), inline=True)
-                    status_text = "\U0001f7e2 Open" if game["status"] == "open" else "\U0001f534 Full"
+                    status_text = (
+                        "\U0001f7e2 Open" if game["status"] == "open" else "\U0001f534 Full"
+                    )
                     embed.add_field(name="Status", value=status_text, inline=True)
                     embed.add_field(name="RSVPs", value=_format_rsvp_field(counts), inline=False)
-                    embed.set_footer(text=f"Game #{game_id} · by {interaction.user.display_name} · edited")
+                    embed.set_footer(
+                        text=f"Game #{game_id} · by {interaction.user.display_name} · edited"
+                    )
                     await msg.edit(embed=embed)
             except (discord.NotFound, discord.HTTPException):
                 log.warning("Could not update original message for game #%d", game_id)
@@ -497,9 +557,7 @@ class GamesCog(commands.Cog):
             changes = ", ".join(f"**{k}**" for k in updates)
             post_channel = await self._get_post_channel(interaction)
             mentions = " ".join(f"<@{uid}>" for uid in notify_ids[:15])
-            await post_channel.send(
-                f"✏️ **{game['title']}** updated ({changes}).\n{mentions}"
-            )
+            await post_channel.send(f"✏️ **{game['title']}** updated ({changes}).\n{mentions}")
 
         await interaction.response.send_message(f"Game #{game_id} updated.", ephemeral=True)
 

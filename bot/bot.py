@@ -35,8 +35,8 @@ class GameFinder(commands.Bot):
             except Exception:
                 log.exception("Failed to load cog: %s", module)
 
-        from bot.cogs.games import RSVPView
         from bot.cogs.campaigns import RosterView
+        from bot.cogs.games import RSVPView
 
         self.add_view(RSVPView(self.db))
         self.add_view(RosterView(self.db))
@@ -47,9 +47,14 @@ class GameFinder(commands.Bot):
     async def setup_hook_error_handlers(self) -> None:
         @self.tree.error
         async def on_app_command_error(
-            interaction: discord.Interaction, error: discord.app_commands.AppCommandError,
+            interaction: discord.Interaction,
+            error: discord.app_commands.AppCommandError,
         ) -> None:
-            log.exception("Command error in /%s", interaction.command.name if interaction.command else "unknown", exc_info=error)
+            log.exception(
+                "Command error in /%s",
+                interaction.command.name if interaction.command else "unknown",
+                exc_info=error,
+            )
             msg = f"Something went wrong: {error}"
             if len(msg) > 200:
                 msg = msg[:200] + "..."
@@ -67,6 +72,7 @@ class GameFinder(commands.Bot):
         await self.setup_hook_error_handlers()
 
         from bot.scheduler import setup_scheduler
+
         self._scheduler = setup_scheduler(self)
         self._scheduler.start()
         log.info("Scheduler started (%d jobs)", len(self._scheduler.get_jobs()))

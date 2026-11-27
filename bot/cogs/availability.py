@@ -12,8 +12,11 @@ from discord.ext import commands
 from bot.db import queries
 from bot.utils.formatting import get_guild_config, make_block_config, ordinal
 from bot.utils.time_blocks import (
-    BLOCK_LABELS, BLOCK_ORDER, BlockConfig, block_to_utc_range,
-    date_range, utc_to_discord_timestamp,
+    BLOCK_LABELS,
+    BLOCK_ORDER,
+    BlockConfig,
+    block_to_utc_range,
+    utc_to_discord_timestamp,
 )
 
 if TYPE_CHECKING:
@@ -81,6 +84,7 @@ class CalendarGrid(discord.ui.LayoutView):
         server_tz = config["timezone"]
 
         import calendar
+
         month_name = calendar.month_name[days[0].month]
         year = days[0].year
         slots_header = _time_slots_header(days[0], server_tz, bc)
@@ -94,26 +98,30 @@ class CalendarGrid(discord.ui.LayoutView):
 
         # Nav
         prev_btn = discord.ui.Button(
-            label="◀ Prev", style=discord.ButtonStyle.blurple,
+            label="◀ Prev",
+            style=discord.ButtonStyle.blurple,
             custom_id=f"g:prev:{self.guild_id}:{self.user_id}",
             disabled=self.week_offset <= 0,
         )
         prev_btn.callback = self._prev_week
 
         next_btn = discord.ui.Button(
-            label="Next ▶", style=discord.ButtonStyle.blurple,
+            label="Next ▶",
+            style=discord.ButtonStyle.blurple,
             custom_id=f"g:next:{self.guild_id}:{self.user_id}",
         )
         next_btn.callback = self._next_week
 
         sync_btn = discord.ui.Button(
-            label="\U0001f4c5 Sync", style=discord.ButtonStyle.grey,
+            label="\U0001f4c5 Sync",
+            style=discord.ButtonStyle.grey,
             custom_id=f"g:sync:{self.guild_id}:{self.user_id}",
         )
         sync_btn.callback = self._sync_placeholder
 
         clear_btn = discord.ui.Button(
-            label="\U0001f5d1 Clear", style=discord.ButtonStyle.red,
+            label="\U0001f5d1 Clear",
+            style=discord.ButtonStyle.red,
             custom_id=f"g:clear:{self.guild_id}:{self.user_id}",
         )
         clear_btn.callback = self._clear_all
@@ -124,19 +132,24 @@ class CalendarGrid(discord.ui.LayoutView):
             lbl = f"{DAY_ABBR[d.weekday()]} {ordinal(d.day)}"
             has_rec = any((d.weekday(), b) in self.recurring for b in BLOCK_ORDER)
             rec_tag = " \U0001f501" if has_rec else ""
-            action_options.append(discord.SelectOption(
-                label=f"⏰ {lbl} — custom hours",
-                value=f"custom:{d.isoformat()}",
-            ))
-            action_options.append(discord.SelectOption(
-                label=f"\U0001f501 {lbl} — recurring{rec_tag}",
-                value=f"recurring:{d.isoformat()}",
-            ))
+            action_options.append(
+                discord.SelectOption(
+                    label=f"⏰ {lbl} — custom hours",
+                    value=f"custom:{d.isoformat()}",
+                )
+            )
+            action_options.append(
+                discord.SelectOption(
+                    label=f"\U0001f501 {lbl} — recurring{rec_tag}",
+                    value=f"recurring:{d.isoformat()}",
+                )
+            )
 
         action_select = discord.ui.Select(
             custom_id=f"g:action:{self.guild_id}:{self.user_id}",
             placeholder="⏰ Custom hours or \U0001f501 Recurring for a day...",
-            min_values=1, max_values=1,
+            min_values=1,
+            max_values=1,
             options=action_options[:25],
         )
         action_select.callback = self._on_action
@@ -149,15 +162,21 @@ class CalendarGrid(discord.ui.LayoutView):
             discord.ui.TextDisplay(
                 f"\U0001f4c5 **{month_name} {year}** • {date_range_str}\n"
                 f"{slots_header}\n"
-                f"\U0001f7e2 on │ \U0001f501 recurring │ {week_count} this week • {total} total{rec_line}"
+                f"\U0001f7e2 on │ \U0001f501 recurring │ "
+                f"{week_count} this week • {total} total{rec_line}"
             ),
-            day_rows[0], day_rows[1], day_rows[2], day_rows[3],
+            day_rows[0],
+            day_rows[1],
+            day_rows[2],
+            day_rows[3],
             accent_colour=discord.Colour.green(),
         )
 
         # Container 2: 3 days + action select + nav
         c2 = discord.ui.Container(
-            day_rows[4], day_rows[5], day_rows[6],
+            day_rows[4],
+            day_rows[5],
+            day_rows[6],
             discord.ui.ActionRow(action_select),
             discord.ui.ActionRow(prev_btn, next_btn, sync_btn, clear_btn),
         )
@@ -185,7 +204,8 @@ class CalendarGrid(discord.ui.LayoutView):
                 style = discord.ButtonStyle.grey
 
             btn = discord.ui.Button(
-                label=label, style=style,
+                label=label,
+                style=style,
                 custom_id=f"g:t:{self.guild_id}:{self.user_id}:{date_str}:{block}",
             )
             btn.callback = self._make_toggle(date_str, block, is_on)
@@ -205,6 +225,7 @@ class CalendarGrid(discord.ui.LayoutView):
                 )
             await self.build()
             await interaction.response.edit_message(view=self)
+
         return callback
 
     async def _on_action(self, interaction: discord.Interaction) -> None:
@@ -221,7 +242,9 @@ class CalendarGrid(discord.ui.LayoutView):
     async def _load_data(self) -> None:
         today = datetime.date.today()
         all_rows = await queries.get_user_availability(
-            self.db, self.guild_id, self.user_id,
+            self.db,
+            self.guild_id,
+            self.user_id,
             today.isoformat(),
             (today + datetime.timedelta(days=180)).isoformat(),
         )
@@ -255,7 +278,9 @@ class CalendarGrid(discord.ui.LayoutView):
 class RecurringEditView(discord.ui.LayoutView):
     """Per-day recurring editor. Multi-select which slots recur for this weekday."""
 
-    def __init__(self, db, guild_id: int, user_id: int, day: datetime.date, week_offset: int) -> None:
+    def __init__(
+        self, db, guild_id: int, user_id: int, day: datetime.date, week_offset: int
+    ) -> None:
         super().__init__(timeout=300)
         self.db = db
         self.guild_id = guild_id
@@ -289,36 +314,43 @@ class RecurringEditView(discord.ui.LayoutView):
         slot_options = []
         for block in BLOCK_ORDER:
             start_dt, end_dt = block_to_utc_range(self.day, block, server_tz, bc)
-            s = utc_to_discord_timestamp(start_dt, "t")
-            e = utc_to_discord_timestamp(end_dt, "t")
+            utc_to_discord_timestamp(start_dt, "t")
+            utc_to_discord_timestamp(end_dt, "t")
             is_active = block in active
-            slot_options.append(discord.SelectOption(
-                label=f"{SLOT_EMOJI[block]} {SLOT_LABEL[block]} ({BLOCK_LABELS[block]})",
-                value=block,
-                description=f"Currently {'ON' if is_active else 'OFF'}",
-                default=is_active,
-            ))
+            slot_options.append(
+                discord.SelectOption(
+                    label=f"{SLOT_EMOJI[block]} {SLOT_LABEL[block]} ({BLOCK_LABELS[block]})",
+                    value=block,
+                    description=f"Currently {'ON' if is_active else 'OFF'}",
+                    default=is_active,
+                )
+            )
 
         slot_select = discord.ui.Select(
             custom_id=f"reced:slots:{self.guild_id}:{self.user_id}:{weekday}",
             placeholder="Select which slots recur...",
-            min_values=0, max_values=3,
+            min_values=0,
+            max_values=3,
             options=slot_options,
         )
         slot_select.callback = self._on_slots_selected
 
-        active_str = ", ".join(f"{SLOT_EMOJI[b]} {SLOT_LABEL[b]}" for b in BLOCK_ORDER if b in active)
+        active_str = ", ".join(
+            f"{SLOT_EMOJI[b]} {SLOT_LABEL[b]}" for b in BLOCK_ORDER if b in active
+        )
         if not active_str:
             active_str = "None"
 
         back_btn = discord.ui.Button(
-            label="◀ Back", style=discord.ButtonStyle.grey,
+            label="◀ Back",
+            style=discord.ButtonStyle.grey,
             custom_id=f"reced:back:{self.guild_id}:{self.user_id}",
         )
         back_btn.callback = self._back
 
         clear_btn = discord.ui.Button(
-            label=f"❌ Remove all {day_name} recurring", style=discord.ButtonStyle.red,
+            label=f"❌ Remove all {day_name} recurring",
+            style=discord.ButtonStyle.red,
             custom_id=f"reced:clear:{self.guild_id}:{self.user_id}:{weekday}",
         )
         clear_btn.callback = self._clear_day_recurring
@@ -377,7 +409,9 @@ class RecurringEditView(discord.ui.LayoutView):
 class CustomHoursView(discord.ui.LayoutView):
     """Set exact hours for a specific day."""
 
-    def __init__(self, db, guild_id: int, user_id: int, day: datetime.date, week_offset: int) -> None:
+    def __init__(
+        self, db, guild_id: int, user_id: int, day: datetime.date, week_offset: int
+    ) -> None:
         super().__init__(timeout=300)
         self.db = db
         self.guild_id = guild_id
@@ -432,32 +466,44 @@ class CustomHoursView(discord.ui.LayoutView):
 
         start_sel = discord.ui.Select(
             custom_id=f"ch:s:{self.guild_id}:{self.user_id}",
-            placeholder="From...", min_values=1, max_values=1, options=start_opts,
+            placeholder="From...",
+            min_values=1,
+            max_values=1,
+            options=start_opts,
         )
         start_sel.callback = self._on_start
 
         end_sel = discord.ui.Select(
             custom_id=f"ch:e:{self.guild_id}:{self.user_id}",
-            placeholder="To...", min_values=1, max_values=1, options=end_opts,
+            placeholder="To...",
+            min_values=1,
+            max_values=1,
+            options=end_opts,
         )
         end_sel.callback = self._on_end
 
         apply_btn = discord.ui.Button(
-            label="✅ Apply", style=discord.ButtonStyle.green,
+            label="✅ Apply",
+            style=discord.ButtonStyle.green,
             custom_id=f"ch:apply:{self.guild_id}:{self.user_id}",
         )
         apply_btn.callback = self._apply
 
         back_btn = discord.ui.Button(
-            label="◀ Back", style=discord.ButtonStyle.grey,
+            label="◀ Back",
+            style=discord.ButtonStyle.grey,
             custom_id=f"ch:back:{self.guild_id}:{self.user_id}",
         )
         back_btn.callback = self._back
 
         status = ""
         if self.start_hour is not None and self.end_hour is not None:
-            s_dt = datetime.datetime(self.day.year, self.day.month, self.day.day, self.start_hour, tzinfo=tz)
-            e_dt = datetime.datetime(self.day.year, self.day.month, self.day.day, self.end_hour, tzinfo=tz)
+            s_dt = datetime.datetime(
+                self.day.year, self.day.month, self.day.day, self.start_hour, tzinfo=tz
+            )
+            e_dt = datetime.datetime(
+                self.day.year, self.day.month, self.day.day, self.end_hour, tzinfo=tz
+            )
             s_ts = utc_to_discord_timestamp(s_dt.astimezone(datetime.UTC), "t")
             e_ts = utc_to_discord_timestamp(e_dt.astimezone(datetime.UTC), "t")
             status = f"\n\n✅ **{s_ts} – {e_ts}** — hit Apply"
@@ -487,6 +533,7 @@ class CustomHoursView(discord.ui.LayoutView):
             grid = CalendarGrid(self.db, self.guild_id, self.user_id, self.week_offset)
             await grid.build()
             await interaction.response.edit_message(view=grid)
+
         return callback
 
     async def _on_start(self, interaction: discord.Interaction) -> None:
@@ -552,10 +599,14 @@ class AvailabilityCog(commands.Cog):
     def __init__(self, bot: GameFinder) -> None:
         self.bot = bot
 
-    @app_commands.command(name="available", description="Mark your availability — tap slots to toggle")
+    @app_commands.command(
+        name="available", description="Mark your availability — tap slots to toggle"
+    )
     async def available(self, interaction: discord.Interaction) -> None:
         view = CalendarGrid(
-            db=self.bot.db, guild_id=interaction.guild_id, user_id=interaction.user.id,
+            db=self.bot.db,
+            guild_id=interaction.guild_id,
+            user_id=interaction.user.id,
         )
         await view.build()
         await interaction.response.send_message(view=view, ephemeral=True)
@@ -565,7 +616,8 @@ class AvailabilityCog(commands.Cog):
         confirm = _ConfirmClearView(self.bot.db, interaction.guild_id, interaction.user.id)
         await interaction.response.send_message(
             "⚠️ This will clear **all** your availability and recurring patterns. Cannot be undone.",
-            view=confirm, ephemeral=True,
+            view=confirm,
+            ephemeral=True,
         )
 
     @app_commands.command(name="available-quick", description="Quick-set recurring availability")
@@ -579,8 +631,11 @@ class AvailabilityCog(commands.Cog):
         ],
     )
     async def available_quick(
-        self, interaction: discord.Interaction,
-        day: app_commands.Choice[str], block: app_commands.Choice[str], weeks: int = 4,
+        self,
+        interaction: discord.Interaction,
+        day: app_commands.Choice[str],
+        block: app_commands.Choice[str],
+        weeks: int = 4,
     ) -> None:
         await interaction.response.defer(ephemeral=True)
         target = int(day.value)
@@ -590,8 +645,11 @@ class AvailabilityCog(commands.Cog):
             d = today + datetime.timedelta(days=i)
             if d.weekday() == target:
                 await queries.upsert_availability(
-                    self.bot.db, interaction.guild_id, interaction.user.id,
-                    d.isoformat(), block.value,
+                    self.bot.db,
+                    interaction.guild_id,
+                    interaction.user.id,
+                    d.isoformat(),
+                    block.value,
                 )
                 count += 1
         await interaction.followup.send(
@@ -654,8 +712,11 @@ class AvailabilityCog(commands.Cog):
                     be = datetime.datetime.combine(current, datetime.time(beh), tzinfo=server_tz)
                     if local_start <= bs and local_end >= be:
                         await queries.upsert_availability(
-                            self.bot.db, interaction.guild_id, interaction.user.id,
-                            current.isoformat(), bn,
+                            self.bot.db,
+                            interaction.guild_id,
+                            interaction.user.id,
+                            current.isoformat(),
+                            bn,
                         )
                         count += 1
                 current += datetime.timedelta(days=1)

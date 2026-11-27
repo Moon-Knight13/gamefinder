@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import datetime
 import logging
 from typing import TYPE_CHECKING
@@ -10,11 +11,15 @@ from discord.ext import commands
 
 from bot.db import queries
 from bot.utils.formatting import (
-    format_bar, get_guild_config, make_block_config, ordinal, validate_date,
+    format_bar,
+    ordinal,
 )
 from bot.utils.time_blocks import (
-    BLOCK_LABELS, BLOCK_ORDER, BlockConfig, block_to_utc_range,
-    date_range, utc_to_discord_timestamp,
+    BLOCK_LABELS,
+    BlockConfig,
+    block_to_utc_range,
+    date_range,
+    utc_to_discord_timestamp,
 )
 
 if TYPE_CHECKING:
@@ -29,8 +34,15 @@ DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 class WindowsView(discord.ui.LayoutView):
     """Top viable windows with Post Game buttons."""
 
-    def __init__(self, bot, guild_id: int, threshold: int, windows: list[dict],
-                 respondents: int, config: dict) -> None:
+    def __init__(
+        self,
+        bot,
+        guild_id: int,
+        threshold: int,
+        windows: list[dict],
+        respondents: int,
+        config: dict,
+    ) -> None:
         super().__init__(timeout=300)
         self.bot_ref = bot
         self.guild_id = guild_id
@@ -43,9 +55,12 @@ class WindowsView(discord.ui.LayoutView):
         self.clear_items()
 
         bc = BlockConfig(
-            morning_start=self.config["morning_start"], morning_end=self.config["morning_end"],
-            afternoon_start=self.config["afternoon_start"], afternoon_end=self.config["afternoon_end"],
-            evening_start=self.config["evening_start"], evening_end=self.config["evening_end"],
+            morning_start=self.config["morning_start"],
+            morning_end=self.config["morning_end"],
+            afternoon_start=self.config["afternoon_start"],
+            afternoon_end=self.config["afternoon_end"],
+            evening_start=self.config["evening_start"],
+            evening_end=self.config["evening_end"],
         )
         server_tz = self.config["timezone"]
 
@@ -59,7 +74,7 @@ class WindowsView(discord.ui.LayoutView):
                 for w in best:
                     d = datetime.date.fromisoformat(w["date"])
                     start_dt, _ = block_to_utc_range(d, w["block"], server_tz, bc)
-                    ts = utc_to_discord_timestamp(start_dt, "D")
+                    utc_to_discord_timestamp(start_dt, "D")
                     time_ts = utc_to_discord_timestamp(start_dt, "t")
                     lines.append(
                         f"{SLOT_EMOJI[w['block']]} **{w['count']}** available • "
@@ -74,8 +89,8 @@ class WindowsView(discord.ui.LayoutView):
                 )
             else:
                 msg = (
-                    f"\U0001f4ca **Availability Windows**\n"
-                    f"No data yet. Players need to run `/available`!"
+                    "\U0001f4ca **Availability Windows**\n"
+                    "No data yet. Players need to run `/available`!"
                 )
 
             c = discord.ui.Container(
@@ -132,10 +147,14 @@ class WindowsView(discord.ui.LayoutView):
             d = datetime.date.fromisoformat(date_str)
             day_name = d.strftime("%A")
             modal = GamePostModal(
-                self.bot_ref, interaction.guild_id, date_str, block,
+                self.bot_ref,
+                interaction.guild_id,
+                date_str,
+                block,
                 title=f"\U0001f3b2 Post Game — {day_name} {ordinal(d.day)} {BLOCK_LABELS[block]}",
             )
             await interaction.response.send_modal(modal)
+
         return callback
 
 
@@ -194,11 +213,15 @@ class GamePostModal(discord.ui.Modal):
                 config = await queries.get_guild_config(self.bot_ref.db, interaction.guild_id)
 
             bc = BlockConfig(
-                morning_start=config["morning_start"], morning_end=config["morning_end"],
-                afternoon_start=config["afternoon_start"], afternoon_end=config["afternoon_end"],
-                evening_start=config["evening_start"], evening_end=config["evening_end"],
+                morning_start=config["morning_start"],
+                morning_end=config["morning_end"],
+                afternoon_start=config["afternoon_start"],
+                afternoon_end=config["afternoon_end"],
+                evening_start=config["evening_start"],
+                evening_end=config["evening_end"],
             )
             from bot.utils.time_blocks import slot_to_discord_time
+
             when_str = slot_to_discord_time(self.date_str, self.block, config["timezone"], bc)
 
             embed = discord.Embed(
@@ -211,6 +234,7 @@ class GamePostModal(discord.ui.Modal):
             embed.add_field(name="Status", value="\U0001f7e2 Open", inline=True)
 
             from bot.cogs.games import RSVPView, _format_rsvp_field
+
             embed.add_field(name="RSVPs", value=_format_rsvp_field({}), inline=False)
             embed.set_footer(text=f"Game #{game_id} · by {interaction.user.display_name}")
 
@@ -237,7 +261,7 @@ class GamePostModal(discord.ui.Modal):
             if available_users:
                 mentions = [f"<@{u['user_id']}>" for u in available_users]
                 for i in range(0, len(mentions), 15):
-                    batch = mentions[i:i + 15]
+                    batch = mentions[i : i + 15]
                     await post_channel.send(
                         f"\U0001f3b2 **{self.game_title.value}** posted for this window!\n"
                         f"You marked this slot as available: {' '.join(batch)}\n"
@@ -245,19 +269,23 @@ class GamePostModal(discord.ui.Modal):
                     )
         except Exception as e:
             log.exception("Failed to create game from modal")
-            try:
+            with contextlib.suppress(Exception):
                 await interaction.followup.send(f"Error creating game: {e}", ephemeral=True)
-            except Exception:
-                pass
-
-
 
 
 class CombinedWindowsView(discord.ui.LayoutView):
     """Oneshot windows + campaign-viable slots in one view."""
 
-    def __init__(self, bot, guild_id: int, threshold: int, windows: list[dict],
-                 consistent: list[dict], respondents: int, config: dict) -> None:
+    def __init__(
+        self,
+        bot,
+        guild_id: int,
+        threshold: int,
+        windows: list[dict],
+        consistent: list[dict],
+        respondents: int,
+        config: dict,
+    ) -> None:
         super().__init__(timeout=300)
         self.bot_ref = bot
         self.guild_id = guild_id
@@ -281,9 +309,12 @@ class CombinedWindowsView(discord.ui.LayoutView):
         self.clear_items()
 
         bc = BlockConfig(
-            morning_start=self.config["morning_start"], morning_end=self.config["morning_end"],
-            afternoon_start=self.config["afternoon_start"], afternoon_end=self.config["afternoon_end"],
-            evening_start=self.config["evening_start"], evening_end=self.config["evening_end"],
+            morning_start=self.config["morning_start"],
+            morning_end=self.config["morning_end"],
+            afternoon_start=self.config["afternoon_start"],
+            afternoon_end=self.config["afternoon_end"],
+            evening_start=self.config["evening_start"],
+            evening_end=self.config["evening_end"],
         )
         server_tz = self.config["timezone"]
         today = datetime.date.today()
@@ -341,7 +372,8 @@ class CombinedWindowsView(discord.ui.LayoutView):
                 for w in best:
                     d = datetime.date.fromisoformat(w["date"])
                     parts.append(
-                        f"{SLOT_EMOJI[w['block']]} {d.strftime('%a')} {ordinal(d.day)} — {w['count']} available"
+                        f"{SLOT_EMOJI[w['block']]} {d.strftime('%a')} "
+                        f"{ordinal(d.day)} — {w['count']} available"
                     )
                 lines = "\nBest so far: " + " • ".join(parts)
 
@@ -393,8 +425,8 @@ class CombinedWindowsView(discord.ui.LayoutView):
 
             campaign_container = discord.ui.Container(
                 discord.ui.TextDisplay(
-                    f"\U0001f3af **Campaign-Viable Slots**\n"
-                    f"*Same players free every week — reliable for recurring games*"
+                    "\U0001f3af **Campaign-Viable Slots**\n"
+                    "*Same players free every week — reliable for recurring games*"
                 ),
                 discord.ui.Separator(),
                 *[s[0] for s in cam_sections],
@@ -420,10 +452,14 @@ class CombinedWindowsView(discord.ui.LayoutView):
             d = datetime.date.fromisoformat(date_str)
             day_name = d.strftime("%A")
             modal = GamePostModal(
-                self.bot_ref, interaction.guild_id, date_str, block,
+                self.bot_ref,
+                interaction.guild_id,
+                date_str,
+                block,
                 title=f"\U0001f3b2 Post Game — {day_name} {ordinal(d.day)} {BLOCK_LABELS[block]}",
             )
             await interaction.response.send_modal(modal)
+
         return callback
 
     def _make_campaign_info(self, slot: dict):
@@ -431,11 +467,15 @@ class CombinedWindowsView(discord.ui.LayoutView):
             day_name = DAY_NAMES[slot["weekday"]]
 
             modal = CampaignPostModal(
-                self.bot_ref, interaction.guild_id, slot["weekday"], slot["block"],
+                self.bot_ref,
+                interaction.guild_id,
+                slot["weekday"],
+                slot["block"],
                 slot["consistent_count"],
                 title=f"\U0001f3af Campaign — Every {day_name} {BLOCK_LABELS[slot['block']]}",
             )
             await interaction.response.send_modal(modal)
+
         return callback
 
 
@@ -467,8 +507,9 @@ class CampaignPostModal(discord.ui.Modal):
         max_length=2,
     )
 
-    def __init__(self, bot, guild_id: int, weekday: int, block: str,
-                 consistent_count: int, **kwargs) -> None:
+    def __init__(
+        self, bot, guild_id: int, weekday: int, block: str, consistent_count: int, **kwargs
+    ) -> None:
         super().__init__(**kwargs)
         self.bot_ref = bot
         self.guild_id = guild_id
@@ -508,7 +549,8 @@ class CampaignPostModal(discord.ui.Modal):
 
         campaign = await queries.get_campaign(self.bot_ref.db, campaign_id, interaction.guild_id)
 
-        from bot.cogs.campaigns import _campaign_embed, RosterView, _block_config
+        from bot.cogs.campaigns import RosterView, _campaign_embed
+
         embed = _campaign_embed(campaign, config, 1)
         embed.set_footer(text=f"Campaign #{campaign_id} · by {interaction.user.display_name}")
 
@@ -531,27 +573,37 @@ class CampaignPostModal(discord.ui.Modal):
             )
 
         await queries.update_campaign(
-            self.bot_ref.db, campaign_id, interaction.guild_id,
-            message_id=msg.id, channel_id=msg.channel.id,
+            self.bot_ref.db,
+            campaign_id,
+            interaction.guild_id,
+            message_id=msg.id,
+            channel_id=msg.channel.id,
         )
 
         # Ping consistent players
         consistent = await queries.get_consistent_players(
-            self.bot_ref.db, interaction.guild_id,
+            self.bot_ref.db,
+            interaction.guild_id,
             datetime.date.today().isoformat(),
             (datetime.date.today() + datetime.timedelta(weeks=6)).isoformat(),
             min_weeks=3,
         )
         # Map Python weekday to SQL weekday for matching
-        matching = [s for s in consistent
-                    if s["weekday"] == self.weekday and s["block"] == self.block]
+        matching = [
+            s for s in consistent if s["weekday"] == self.weekday and s["block"] == self.block
+        ]
         if matching and matching[0]["players"]:
-            mentions = [f"<@{uid}>" for uid in matching[0]["players"]
-                        if uid != interaction.user.id]
+            mentions = [
+                f"<@{uid}>"
+                for uid in matching[0]["players"]
+                if uid != interaction.user.id
+            ]
             if mentions:
                 await post_channel.send(
-                    f"\U0001f3af **{self.campaign_title.value}** — {session_count} session campaign!\n"
-                    f"You're consistently free for this slot: {' '.join(mentions[:15])}\n"
+                    f"\U0001f3af **{self.campaign_title.value}** "
+                    f"— {session_count} session campaign!\n"
+                    f"You're consistently free for this slot: "
+                    f"{' '.join(mentions[:15])}\n"
                     f"Join the roster above if you're in!"
                 )
 
@@ -559,8 +611,15 @@ class CampaignPostModal(discord.ui.Modal):
 class CampaignWindowsView(discord.ui.LayoutView):
     """Campaign-viable slots: same players across 3+ weeks."""
 
-    def __init__(self, bot, guild_id: int, threshold: int, consistent: list[dict],
-                 respondents: int, config: dict) -> None:
+    def __init__(
+        self,
+        bot,
+        guild_id: int,
+        threshold: int,
+        consistent: list[dict],
+        respondents: int,
+        config: dict,
+    ) -> None:
         super().__init__(timeout=300)
         self.bot_ref = bot
         self.guild_id = guild_id
@@ -573,9 +632,12 @@ class CampaignWindowsView(discord.ui.LayoutView):
         self.clear_items()
 
         bc = BlockConfig(
-            morning_start=self.config["morning_start"], morning_end=self.config["morning_end"],
-            afternoon_start=self.config["afternoon_start"], afternoon_end=self.config["afternoon_end"],
-            evening_start=self.config["evening_start"], evening_end=self.config["evening_end"],
+            morning_start=self.config["morning_start"],
+            morning_end=self.config["morning_end"],
+            afternoon_start=self.config["afternoon_start"],
+            afternoon_end=self.config["afternoon_end"],
+            evening_start=self.config["evening_start"],
+            evening_end=self.config["evening_end"],
         )
         server_tz = self.config["timezone"]
 
@@ -600,8 +662,8 @@ class CampaignWindowsView(discord.ui.LayoutView):
                 )
             else:
                 msg = (
-                    f"\U0001f3af **Campaign Windows**\n"
-                    f"Not enough data yet. Need 3+ weeks of availability."
+                    "\U0001f3af **Campaign Windows**\n"
+                    "Not enough data yet. Need 3+ weeks of availability."
                 )
 
             c = discord.ui.Container(
@@ -631,8 +693,10 @@ class CampaignWindowsView(discord.ui.LayoutView):
 
             section = discord.ui.Section(
                 discord.ui.TextDisplay(
-                    f"{SLOT_EMOJI[s['block']]} **Every {day_name}** {time_start}–{time_end}\n"
-                    f"**{s['consistent_count']} players** consistent across {s['total_weeks']} weeks\n"
+                    f"{SLOT_EMOJI[s['block']]} **Every {day_name}** "
+                    f"{time_start}–{time_end}\n"
+                    f"**{s['consistent_count']}** consistent "
+                    f"across {s['total_weeks']} weeks\n"
                     f"{bar}"
                 ),
                 accessory=discord.ui.Button(
@@ -677,6 +741,7 @@ class CampaignWindowsView(discord.ui.LayoutView):
                 f"Use `/campaign create` when ready (coming soon).",
                 ephemeral=True,
             )
+
         return callback
 
 
@@ -715,12 +780,21 @@ class WindowsCog(commands.Cog):
             self.bot.db, interaction.guild_id, date_from, date_to
         )
         consistent = await queries.get_consistent_players(
-            self.bot.db, interaction.guild_id, date_from, date_to, min_weeks=3,
+            self.bot.db,
+            interaction.guild_id,
+            date_from,
+            date_to,
+            min_weeks=3,
         )
 
         view = CombinedWindowsView(
-            self.bot, interaction.guild_id, threshold,
-            counts, consistent, respondents, config,
+            self.bot,
+            interaction.guild_id,
+            threshold,
+            counts,
+            consistent,
+            respondents,
+            config,
         )
         await view.build()
         await interaction.followup.send(view=view, ephemeral=True)

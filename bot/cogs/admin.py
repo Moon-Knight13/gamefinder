@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import datetime
 import logging
 from typing import TYPE_CHECKING
@@ -46,7 +47,9 @@ class AdminCog(commands.Cog):
         self.bot = bot
 
     async def cog_app_command_error(
-        self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError,
+        self,
+        interaction: discord.Interaction,
+        error: discord.app_commands.AppCommandError,
     ) -> None:
         log.exception("Admin command error", exc_info=error)
         msg = f"Error: {error}"[:200]
@@ -124,7 +127,11 @@ class AdminCog(commands.Cog):
             await queries.update_guild_config(self.bot.db, interaction.guild_id, **kwargs)
 
         config = await queries.get_guild_config(self.bot.db, interaction.guild_id)
-        channel_str = f"<#{config['scheduling_channel_id']}>" if config["scheduling_channel_id"] else "Any channel"
+        channel_str = (
+            f"<#{config['scheduling_channel_id']}>"
+            if config["scheduling_channel_id"]
+            else "Any channel"
+        )
         await interaction.response.send_message(
             f"Server configured:\n"
             f"- Scheduling channel: {channel_str}\n"
@@ -213,14 +220,14 @@ class AdminCog(commands.Cog):
                 pass
 
         msg = await target.send(embed=embed)
-        try:
+        with contextlib.suppress(discord.HTTPException):
             await msg.pin()
-        except discord.HTTPException:
-            pass
 
         await queries.update_guild_config(
-            self.bot.db, interaction.guild_id,
-            widget_message_id=msg.id, widget_channel_id=msg.channel.id,
+            self.bot.db,
+            interaction.guild_id,
+            widget_message_id=msg.id,
+            widget_channel_id=msg.channel.id,
         )
         await interaction.followup.send(
             f"\U0001f4ca Widget posted in {target.mention}! Updates every hour.",
@@ -252,14 +259,21 @@ class AdminCog(commands.Cog):
         # Response rate
         embed.add_field(
             name="\U0001f4ca Availability",
-            value=f"**{stats['respondents']}** players responded\n{config['forecast_weeks']} week window",
+            value=(
+                f"**{stats['respondents']}** players responded\n"
+                f"{config['forecast_weeks']} week window"
+            ),
             inline=True,
         )
 
         # Games
         embed.add_field(
             name="\U0001f3b2 Games",
-            value=f"**{len(games)}** open\n**{len(full_games)}** confirmed\n**{stats['games_count']}** total",
+            value=(
+                f"**{len(games)}** open\n"
+                f"**{len(full_games)}** confirmed\n"
+                f"**{stats['games_count']}** total"
+            ),
             inline=True,
         )
 
@@ -289,8 +303,7 @@ class AdminCog(commands.Cog):
                 counts = await queries.get_rsvp_counts(self.bot.db, g["id"])
                 going = counts.get("going", 0)
                 game_lines.append(
-                    f"• **{g['title']}** — {g['slot_date']} "
-                    f"(✅ {going}/{g['player_cap']})"
+                    f"• **{g['title']}** — {g['slot_date']} (✅ {going}/{g['player_cap']})"
                 )
             embed.add_field(
                 name="\U0001f4c5 Upcoming Games",
@@ -311,7 +324,9 @@ class AdminCog(commands.Cog):
             ephemeral=True,
         )
 
-    @app_commands.command(name="simulate-rsvp", description="[Dev] Simulate mock player RSVPs on a game")
+    @app_commands.command(
+        name="simulate-rsvp", description="[Dev] Simulate mock player RSVPs on a game"
+    )
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.describe(
         game_id="Game ID to RSVP on",
@@ -328,7 +343,9 @@ class AdminCog(commands.Cog):
         spectators: int = 1,
     ) -> None:
         if not self.bot.config.dev_mode:
-            await interaction.response.send_message("Dev commands disabled. Set DEV_MODE=1.", ephemeral=True)
+            await interaction.response.send_message(
+                "Dev commands disabled. Set DEV_MODE=1.", ephemeral=True
+            )
             return
         game = await queries.get_game(self.bot.db, game_id, interaction.guild_id)
         if not game:
@@ -363,11 +380,13 @@ class AdminCog(commands.Cog):
                     msg = await channel.fetch_message(game["message_id"])
                     if msg.embeds:
                         from bot.cogs.games import _format_rsvp_field
+
                         embed = msg.embeds[0].copy()
                         for i, field in enumerate(embed.fields):
                             if field.name == "RSVPs":
-                                embed.set_field_at(i, name="RSVPs",
-                                                   value=_format_rsvp_field(counts), inline=False)
+                                embed.set_field_at(
+                                    i, name="RSVPs", value=_format_rsvp_field(counts), inline=False
+                                )
                                 break
                         await msg.edit(embed=embed)
             except Exception as e:
@@ -378,6 +397,7 @@ class AdminCog(commands.Cog):
         if total_going >= game["player_cap"] and game["status"] == "open":
             await queries.update_game_status(self.bot.db, game_id, interaction.guild_id, "full")
             from bot.cogs.games import create_game_event
+
             event = await create_game_event(
                 self.bot, interaction.guild, game, game_id, interaction.guild_id
             )
@@ -409,7 +429,7 @@ class AdminCog(commands.Cog):
                                 f"Click to join the Discord Event and get reminders:\n"
                                 f"{event.url}"
                             )
-                        except (Exception,):
+                        except Exception:
                             log.debug("Could not DM user %d", r["user_id"])
             else:
                 quorum_msg += " — Event creation failed (check bot permissions)"
@@ -422,7 +442,9 @@ class AdminCog(commands.Cog):
             ephemeral=True,
         )
 
-    @app_commands.command(name="simulate-roster", description="[Dev] Simulate mock players joining a campaign roster")
+    @app_commands.command(
+        name="simulate-roster", description="[Dev] Simulate mock players joining a campaign roster"
+    )
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.describe(
         campaign_id="Campaign ID",
@@ -435,7 +457,9 @@ class AdminCog(commands.Cog):
         count: int = 4,
     ) -> None:
         if not self.bot.config.dev_mode:
-            await interaction.response.send_message("Dev commands disabled. Set DEV_MODE=1.", ephemeral=True)
+            await interaction.response.send_message(
+                "Dev commands disabled. Set DEV_MODE=1.", ephemeral=True
+            )
             return
         campaign = await queries.get_campaign(self.bot.db, campaign_id, interaction.guild_id)
         if not campaign:
@@ -462,6 +486,7 @@ class AdminCog(commands.Cog):
                     if msg.embeds:
                         config = await queries.get_guild_config(self.bot.db, interaction.guild_id)
                         from bot.cogs.campaigns import _campaign_embed
+
                         embed = _campaign_embed(campaign, config, len(roster))
                         await msg.edit(embed=embed)
             except Exception as e:
@@ -475,13 +500,18 @@ class AdminCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
-        log.info("Removed from guild %s (%d) — scheduling data deletion in 30 days", guild.name, guild.id)
+        log.info(
+            "Removed from guild %s (%d) — scheduling data deletion in 30 days", guild.name, guild.id
+        )
         if hasattr(self.bot, "_scheduler"):
             from apscheduler.triggers.date import DateTrigger
+
             run_date = datetime.datetime.now() + datetime.timedelta(days=30)
             self.bot._scheduler.add_job(
-                self._delete_guild_data, DateTrigger(run_date=run_date),
-                args=[guild.id], id=f"guild_delete_{guild.id}",
+                self._delete_guild_data,
+                DateTrigger(run_date=run_date),
+                args=[guild.id],
+                id=f"guild_delete_{guild.id}",
                 replace_existing=True,
             )
 

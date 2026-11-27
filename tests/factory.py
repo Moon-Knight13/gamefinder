@@ -71,11 +71,14 @@ class Factory:
             "weekend_evening": {"days": [4, 5], "blocks": ["evening"]},
             "weeknight": {"days": [1, 2, 3], "blocks": ["evening"]},
             "weekend_all_day": {"days": [5, 6], "blocks": ["morning", "afternoon", "evening"]},
-            "scattered": {"days": [0, 1, 2, 3, 4, 5, 6], "blocks": ["morning", "afternoon", "evening"]},
+            "scattered": {
+                "days": [0, 1, 2, 3, 4, 5, 6],
+                "blocks": ["morning", "afternoon", "evening"],
+            },
         }
         config = archetypes.get(archetype, archetypes["weekend_evening"])
         players = []
-        for i in range(size):
+        for _i in range(size):
             # Each player varies slightly from archetype
             days = list(config["days"])
             if random.random() < 0.3 and len(days) > 1:
@@ -101,18 +104,21 @@ class Factory:
         for i in range(weeks * 7):
             d = start + datetime.timedelta(days=i)
             for player in players:
-                if d.weekday() in player.preferred_days:
-                    if random.random() < player.reliability:
-                        for block in player.preferred_blocks:
-                            await queries.upsert_availability(
-                                self.db, self.guild_id, player.user_id,
-                                d.isoformat(), block,
-                            )
-                            count += 1
+                if d.weekday() in player.preferred_days and random.random() < player.reliability:
+                    for block in player.preferred_blocks:
+                        await queries.upsert_availability(
+                            self.db,
+                            self.guild_id,
+                            player.user_id,
+                            d.isoformat(),
+                            block,
+                        )
+                        count += 1
         return count
 
     async def fill_recurring(
-        self, players: list[MockPlayer] | None = None,
+        self,
+        players: list[MockPlayer] | None = None,
     ) -> int:
         """Set recurring patterns matching player preferences."""
         players = players or self._players
@@ -120,9 +126,7 @@ class Factory:
         for player in players:
             for day in player.preferred_days:
                 for block in player.preferred_blocks:
-                    await queries.set_recurring(
-                        self.db, self.guild_id, player.user_id, day, block
-                    )
+                    await queries.set_recurring(self.db, self.guild_id, player.user_id, day, block)
                     count += 1
         return count
 
@@ -156,16 +160,16 @@ class Factory:
     ) -> dict[str, int]:
         """RSVP multiple players to a game."""
         counts = {"going": 0, "maybe": 0, "spectator": 0, "waitlist": 0}
-        for player in (going or []):
+        for player in going or []:
             await queries.upsert_rsvp(self.db, game_id, player.user_id, "going")
             counts["going"] += 1
-        for player in (maybe or []):
+        for player in maybe or []:
             await queries.upsert_rsvp(self.db, game_id, player.user_id, "maybe")
             counts["maybe"] += 1
-        for player in (spectators or []):
+        for player in spectators or []:
             await queries.upsert_rsvp(self.db, game_id, player.user_id, "spectator")
             counts["spectator"] += 1
-        for player in (waitlist or []):
+        for player in waitlist or []:
             await queries.upsert_rsvp(self.db, game_id, player.user_id, "waitlist")
             counts["waitlist"] += 1
         return counts
@@ -180,14 +184,21 @@ class Factory:
         player_max: int = 6,
     ) -> int:
         return await queries.create_campaign(
-            self.db, self.guild_id, creator.user_id,
-            title=title, description=f"Campaign by {creator.name}",
-            day_of_week=day_of_week, block=block,
-            session_count=session_count, player_max=player_max,
+            self.db,
+            self.guild_id,
+            creator.user_id,
+            title=title,
+            description=f"Campaign by {creator.name}",
+            day_of_week=day_of_week,
+            block=block,
+            session_count=session_count,
+            player_max=player_max,
         )
 
     async def fill_roster(
-        self, campaign_id: int, players: list[MockPlayer],
+        self,
+        campaign_id: int,
+        players: list[MockPlayer],
     ) -> int:
         count = 0
         for player in players:

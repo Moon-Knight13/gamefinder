@@ -60,7 +60,9 @@ class Database:
                 CREATE TABLE rsvps (
                     game_id INTEGER NOT NULL,
                     user_id INTEGER NOT NULL,
-                    status TEXT NOT NULL CHECK (status IN ('going', 'maybe', 'not_going', 'spectator', 'waitlist')),
+                    status TEXT NOT NULL CHECK (
+                        status IN ('going', 'maybe', 'not_going', 'spectator', 'waitlist')
+                    ),
                     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                     PRIMARY KEY (game_id, user_id),
                     FOREIGN KEY (game_id) REFERENCES games(id),
@@ -74,8 +76,12 @@ class Database:
         col_check = await self._conn.execute("PRAGMA table_info(campaigns)")
         cols = {r[1] for r in await col_check.fetchall()}
         if "session_count" not in cols:
-            await self._conn.execute("ALTER TABLE campaigns ADD COLUMN session_count INTEGER NOT NULL DEFAULT 8")
-            await self._conn.execute("ALTER TABLE campaigns ADD COLUMN sessions_completed INTEGER NOT NULL DEFAULT 0")
+            await self._conn.execute(
+                "ALTER TABLE campaigns ADD COLUMN session_count INTEGER NOT NULL DEFAULT 8"
+            )
+            await self._conn.execute(
+                "ALTER TABLE campaigns ADD COLUMN sessions_completed INTEGER NOT NULL DEFAULT 0"
+            )
             await self._conn.execute("ALTER TABLE campaigns ADD COLUMN message_id INTEGER")
             await self._conn.execute("ALTER TABLE campaigns ADD COLUMN channel_id INTEGER")
             await self._conn.commit()
