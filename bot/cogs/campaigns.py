@@ -9,6 +9,9 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.db import queries
+from bot.utils.formatting import (
+    extract_id_from_footer, get_guild_config, make_block_config, ordinal,
+)
 from bot.utils.time_blocks import (
     BLOCK_LABELS, BLOCK_ORDER, BlockConfig, block_to_utc_range, utc_to_discord_timestamp,
 )
@@ -24,26 +27,6 @@ CADENCE_LABELS = {"weekly": "Weekly", "biweekly": "Biweekly"}
 MAX_SESSIONS = 52
 
 
-def _ordinal(n: int) -> str:
-    if 11 <= n % 100 <= 13:
-        return f"{n}th"
-    return f"{n}{['th','st','nd','rd','th','th','th','th','th','th'][n % 10]}"
-
-
-async def _get_config(db, guild_id: int) -> dict:
-    config = await queries.get_guild_config(db, guild_id)
-    if not config:
-        await queries.ensure_guild(db, guild_id)
-        config = await queries.get_guild_config(db, guild_id)
-    return config
-
-
-def _block_config(config: dict) -> BlockConfig:
-    return BlockConfig(
-        morning_start=config["morning_start"], morning_end=config["morning_end"],
-        afternoon_start=config["afternoon_start"], afternoon_end=config["afternoon_end"],
-        evening_start=config["evening_start"], evening_end=config["evening_end"],
-    )
 
 
 def _next_weekday(weekday: int, after: datetime.date | None = None) -> datetime.date:
@@ -64,7 +47,7 @@ def _session_dates(start: datetime.date, weekday: int, cadence: str, count: int)
 
 
 def _campaign_embed(campaign: dict, config: dict, roster_count: int) -> discord.Embed:
-    bc = _block_config(config)
+    bc = make_block_config(config)
     server_tz = config["timezone"]
     day_name = DAY_NAMES[campaign["day_of_week"]]
 
@@ -184,7 +167,7 @@ class RosterView(discord.ui.View):
 
         # Update embed with new roster count
         roster = await queries.get_roster(self.db, campaign_id)
-        config = await _get_config(self.db, interaction.guild_id)
+        config = await get_guild_config(self.db, interaction.guild_id)
         embed = _campaign_embed(campaign, config, len(roster))
         try:
             await interaction.message.edit(embed=embed)
@@ -194,13 +177,7 @@ class RosterView(discord.ui.View):
     def _extract_id(self, message: discord.Message | None) -> int | None:
         if not message or not message.embeds:
             return None
-        embed = message.embeds[0]
-        if embed.footer and embed.footer.text:
-            import re
-            match = re.search(r"#(\d+)", embed.footer.text)
-            if match:
-                return int(match.group(1))
-        return None
+        return extract_id_from_footer(message.embeds[0])
 
 
 class CampaignsCog(commands.Cog):
@@ -285,7 +262,7 @@ class CampaignsCog(commands.Cog):
         # Add creator to roster
         await queries.add_to_roster(self.bot.db, campaign_id, interaction.user.id)
 
-        config = await _get_config(self.bot.db, interaction.guild_id)
+        config = await get_guild_config(self.bot.db, interaction.guild_id)
         campaign = await queries.get_campaign(self.bot.db, campaign_id, interaction.guild_id)
         embed = _campaign_embed(campaign, config, 1)
         embed.set_footer(text=f"Campaign #{campaign_id} · by {interaction.user.display_name}")
@@ -313,7 +290,7 @@ class CampaignsCog(commands.Cog):
         )
 
         # Ping consistent players for this slot
-        bc = _block_config(config)
+        bc = make_block_config(config)
         server_tz = config["timezone"]
         today = datetime.date.today()
         forecast_end = (today + datetime.timedelta(weeks=config["forecast_weeks"])).isoformat()
@@ -364,7 +341,7 @@ class CampaignsCog(commands.Cog):
             return
 
         roster = await queries.get_roster(self.bot.db, campaign_id)
-        config = await _get_config(self.bot.db, interaction.guild_id)
+        config = await get_guild_config(self.bot.db, interaction.guild_id)
 
         player_names = []
         for r in roster:
@@ -400,7 +377,7 @@ class CampaignsCog(commands.Cog):
 
         roster = await queries.get_roster(self.bot.db, campaign_id)
         if roster:
-            config = await _get_config(self.bot.db, interaction.guild_id)
+            config = await get_guild_config(self.bot.db, interaction.guild_id)
             post_channel = interaction.channel
             if config and config["scheduling_channel_id"]:
                 ch = interaction.guild.get_channel(config["scheduling_channel_id"])

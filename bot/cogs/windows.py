@@ -9,7 +9,9 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.db import queries
-from bot.utils.formatting import format_bar
+from bot.utils.formatting import (
+    format_bar, get_guild_config, make_block_config, ordinal, validate_date,
+)
 from bot.utils.time_blocks import (
     BLOCK_LABELS, BLOCK_ORDER, BlockConfig, block_to_utc_range,
     date_range, utc_to_discord_timestamp,
@@ -21,12 +23,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 SLOT_EMOJI = {"morning": "\U0001f305", "afternoon": "☀️", "evening": "\U0001f319"}
-
-
-def _ordinal(n: int) -> str:
-    if 11 <= n % 100 <= 13:
-        return f"{n}th"
-    return f"{n}{['th','st','nd','rd','th','th','th','th','th','th'][n % 10]}"
+DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 class WindowsView(discord.ui.LayoutView):
@@ -66,7 +63,7 @@ class WindowsView(discord.ui.LayoutView):
                     time_ts = utc_to_discord_timestamp(start_dt, "t")
                     lines.append(
                         f"{SLOT_EMOJI[w['block']]} **{w['count']}** available • "
-                        f"{d.strftime('%a')} {_ordinal(d.day)} {time_ts}"
+                        f"{d.strftime('%a')} {ordinal(d.day)} {time_ts}"
                     )
                 body = "\n".join(lines)
                 msg = (
@@ -105,7 +102,7 @@ class WindowsView(discord.ui.LayoutView):
 
             section = discord.ui.Section(
                 discord.ui.TextDisplay(
-                    f"{SLOT_EMOJI[w['block']]} **{d.strftime('%A')} {_ordinal(d.day)}**\n"
+                    f"{SLOT_EMOJI[w['block']]} **{d.strftime('%A')} {ordinal(d.day)}**\n"
                     f"{s_ts} to {e_ts}\n"
                     f"**{w['count']} players** could fill your table\n"
                     f"{bar}"
@@ -136,7 +133,7 @@ class WindowsView(discord.ui.LayoutView):
             day_name = d.strftime("%A")
             modal = GamePostModal(
                 self.bot_ref, interaction.guild_id, date_str, block,
-                title=f"\U0001f3b2 Post Game — {day_name} {_ordinal(d.day)} {BLOCK_LABELS[block]}",
+                title=f"\U0001f3b2 Post Game — {day_name} {ordinal(d.day)} {BLOCK_LABELS[block]}",
             )
             await interaction.response.send_modal(modal)
         return callback
@@ -254,7 +251,6 @@ class GamePostModal(discord.ui.Modal):
                 pass
 
 
-DAY_NAMES_SUN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
 
 class CombinedWindowsView(discord.ui.LayoutView):
@@ -313,7 +309,7 @@ class CombinedWindowsView(discord.ui.LayoutView):
 
                 section = discord.ui.Section(
                     discord.ui.TextDisplay(
-                        f"{SLOT_EMOJI[w['block']]} **{d.strftime('%A')} {_ordinal(d.day)}**\n"
+                        f"{SLOT_EMOJI[w['block']]} **{d.strftime('%A')} {ordinal(d.day)}**\n"
                         f"{s_ts} to {e_ts}\n"
                         f"**{w['count']} players** could fill your table\n"
                         f"{bar}"
@@ -345,7 +341,7 @@ class CombinedWindowsView(discord.ui.LayoutView):
                 for w in best:
                     d = datetime.date.fromisoformat(w["date"])
                     parts.append(
-                        f"{SLOT_EMOJI[w['block']]} {d.strftime('%a')} {_ordinal(d.day)} — {w['count']} available"
+                        f"{SLOT_EMOJI[w['block']]} {d.strftime('%a')} {ordinal(d.day)} — {w['count']} available"
                     )
                 lines = "\nBest so far: " + " • ".join(parts)
 
@@ -367,7 +363,7 @@ class CombinedWindowsView(discord.ui.LayoutView):
         if top_campaign:
             cam_sections = []
             for s in top_campaign:
-                day_name = DAY_NAMES_SUN[s["weekday"]]
+                day_name = DAY_NAMES[s["weekday"]]
                 bar = format_bar(s["consistent_count"], top_campaign[0]["consistent_count"])
 
                 sample_date = today
@@ -425,27 +421,17 @@ class CombinedWindowsView(discord.ui.LayoutView):
             day_name = d.strftime("%A")
             modal = GamePostModal(
                 self.bot_ref, interaction.guild_id, date_str, block,
-                title=f"\U0001f3b2 Post Game — {day_name} {_ordinal(d.day)} {BLOCK_LABELS[block]}",
+                title=f"\U0001f3b2 Post Game — {day_name} {ordinal(d.day)} {BLOCK_LABELS[block]}",
             )
             await interaction.response.send_modal(modal)
         return callback
 
     def _make_campaign_info(self, slot: dict):
         async def callback(interaction: discord.Interaction) -> None:
-            day_name = DAY_NAMES_SUN[slot["weekday"]]
-            # Map Sunday=0 weekday from SQL to Python Monday=0
-            py_weekday = (slot["weekday"] - 1) % 7
-
-            player_list = []
-            for uid in slot["players"][:15]:
-                member = interaction.guild.get_member(uid)
-                if member:
-                    player_list.append(member.display_name)
-                else:
-                    player_list.append(f"Player #{uid}")
+            day_name = DAY_NAMES[slot["weekday"]]
 
             modal = CampaignPostModal(
-                self.bot_ref, interaction.guild_id, py_weekday, slot["block"],
+                self.bot_ref, interaction.guild_id, slot["weekday"], slot["block"],
                 slot["consistent_count"],
                 title=f"\U0001f3af Campaign — Every {day_name} {BLOCK_LABELS[slot['block']]}",
             )
@@ -557,9 +543,8 @@ class CampaignPostModal(discord.ui.Modal):
             min_weeks=3,
         )
         # Map Python weekday to SQL weekday for matching
-        sql_weekday = (self.weekday + 1) % 7
         matching = [s for s in consistent
-                    if s["weekday"] == sql_weekday and s["block"] == self.block]
+                    if s["weekday"] == self.weekday and s["block"] == self.block]
         if matching and matching[0]["players"]:
             mentions = [f"<@{uid}>" for uid in matching[0]["players"]
                         if uid != interaction.user.id]

@@ -9,6 +9,7 @@ class Config:
     token: str
     db_path: str = "data/gamefinder.db"
     log_level: str = "INFO"
+    dev_mode: bool = False
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -20,4 +21,5 @@ class Config:
             token=token,
             db_path=os.environ.get("DB_PATH", "data/gamefinder.db"),
             log_level=os.environ.get("LOG_LEVEL", "INFO"),
+            dev_mode=os.environ.get("DEV_MODE", "").lower() in ("1", "true", "yes"),
         )

@@ -307,3 +307,80 @@ async def test_stress_concurrent_availability_updates(db):
 
 
 import random
+
+
+# --- Testing gaps from review ---
+
+
+async def test_invalid_date_rejected(db):
+    """validate_date returns None for bad input."""
+    from bot.utils.formatting import validate_date
+    assert validate_date("2026-12-05") == datetime.date(2026, 12, 5)
+    assert validate_date("banana") is None
+    assert validate_date("2026-13-01") is None
+    assert validate_date("") is None
+
+
+async def test_delete_user_data_includes_recurring(db):
+    """delete_user_data removes recurring_availability too."""
+    f = Factory(db)
+    await f.setup_guild()
+    player = await f.create_player()
+    await queries.set_recurring(db, f.guild_id, player.user_id, 4, "evening")
+    recurring = await queries.get_user_recurring(db, f.guild_id, player.user_id)
+    assert len(recurring) == 1
+
+    await queries.delete_user_data(db, player.user_id)
+    recurring = await queries.get_user_recurring(db, f.guild_id, player.user_id)
+    assert len(recurring) == 0
+
+
+async def test_weekday_convention_monday_zero(db):
+    """get_consistent_players uses Monday=0 convention matching Python."""
+    f = Factory(db)
+    await f.setup_guild()
+    player = await f.create_player()
+
+    # Mark availability on 3 Fridays (Python weekday 4)
+    for week in range(3):
+        d = datetime.date(2026, 12, 4) + datetime.timedelta(weeks=week)
+        assert d.weekday() == 4
+        await queries.upsert_availability(db, f.guild_id, player.user_id, d.isoformat(), "evening")
+
+    consistent = await queries.get_consistent_players(
+        db, f.guild_id, "2026-12-04", "2026-12-25", min_weeks=3
+    )
+    friday_slots = [s for s in consistent if s["weekday"] == 4]
+    assert len(friday_slots) == 1
+    assert friday_slots[0]["consistent_count"] == 1
+
+
+async def test_list_games_all_statuses(db):
+    """list_games with status=None returns all games."""
+    f = Factory(db, guild_id=5001)
+    await f.setup_guild()
+    dm = await f.create_player()
+    g1 = await f.create_game(dm, title="Open Game")
+    g2 = await f.create_game(dm, title="Full Game")
+    await queries.update_game_status(db, g2, 5001, "full")
+    g3 = await f.create_game(dm, title="Cancelled Game")
+    await queries.update_game_status(db, g3, 5001, "cancelled")
+
+    open_only = await queries.list_games(db, 5001, status="open")
+    assert len(open_only) == 1
+    all_games = await queries.list_games(db, 5001, status=None)
+    assert len(all_games) == 3
+
+
+async def test_roster_cap_enforced(db):
+    """add_to_roster returns False when roster is full."""
+    f = Factory(db)
+    await f.setup_guild()
+    dm = await f.create_player()
+    cid = await f.create_campaign(dm, player_max=2, session_count=4)
+    p1 = await f.create_player()
+    p2 = await f.create_player()
+    p3 = await f.create_player()
+    assert await queries.add_to_roster(db, cid, p1.user_id) is True
+    assert await queries.add_to_roster(db, cid, p2.user_id) is True
+    assert await queries.add_to_roster(db, cid, p3.user_id) is False

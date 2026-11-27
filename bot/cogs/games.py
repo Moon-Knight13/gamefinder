@@ -10,6 +10,9 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.db import queries
+from bot.utils.formatting import (
+    extract_id_from_footer, get_guild_config, make_block_config, validate_date,
+)
 from bot.utils.time_blocks import BLOCK_LABELS, BlockConfig, block_to_utc_range, slot_to_discord_time
 
 if TYPE_CHECKING:
@@ -198,13 +201,7 @@ class RSVPView(discord.ui.View):
     def _extract_game_id(self, message: discord.Message | None) -> int | None:
         if not message or not message.embeds:
             return None
-        embed = message.embeds[0]
-        if embed.footer and embed.footer.text:
-            import re
-            match = re.search(r"#(\d+)", embed.footer.text)
-            if match:
-                return int(match.group(1))
-        return None
+        return extract_id_from_footer(message.embeds[0])
 
 
 class GamesCog(commands.Cog):
@@ -223,23 +220,6 @@ class GamesCog(commands.Cog):
                 await interaction.response.send_message(msg, ephemeral=True)
         except discord.HTTPException:
             pass
-
-    async def _get_guild_config(self, guild_id: int) -> dict:
-        config = await queries.get_guild_config(self.bot.db, guild_id)
-        if not config:
-            await queries.ensure_guild(self.bot.db, guild_id)
-            config = await queries.get_guild_config(self.bot.db, guild_id)
-        return config
-
-    def _block_config(self, config: dict) -> BlockConfig:
-        return BlockConfig(
-            morning_start=config["morning_start"],
-            morning_end=config["morning_end"],
-            afternoon_start=config["afternoon_start"],
-            afternoon_end=config["afternoon_end"],
-            evening_start=config["evening_start"],
-            evening_end=config["evening_end"],
-        )
 
     async def _get_post_channel(
         self, interaction: discord.Interaction
@@ -275,10 +255,16 @@ class GamesCog(commands.Cog):
         block: app_commands.Choice[str],
         player_cap: int = 5,
     ) -> None:
+        if not validate_date(date):
+            await interaction.response.send_message(
+                "Invalid date. Use YYYY-MM-DD format (e.g. 2026-12-05).", ephemeral=True
+            )
+            return
+
         await interaction.response.defer()
 
-        config = await self._get_guild_config(interaction.guild_id)
-        bc = self._block_config(config)
+        config = await get_guild_config(self.bot.db, interaction.guild_id)
+        bc = make_block_config(config)
 
         game_id = await queries.create_game(
             self.bot.db,
@@ -341,15 +327,29 @@ class GamesCog(commands.Cog):
                     f"RSVP above — open to everyone!"
                 )
 
-    @app_commands.command(name="games", description="List upcoming games")
-    async def games_list(self, interaction: discord.Interaction) -> None:
-        games = await queries.list_games(self.bot.db, interaction.guild_id)
+    @app_commands.command(name="games", description="List games")
+    @app_commands.describe(status="Filter by status (default: open)")
+    @app_commands.choices(status=[
+        app_commands.Choice(name="Open", value="open"),
+        app_commands.Choice(name="Full", value="full"),
+        app_commands.Choice(name="Cancelled", value="cancelled"),
+        app_commands.Choice(name="All", value="all"),
+    ])
+    async def games_list(
+        self, interaction: discord.Interaction,
+        status: app_commands.Choice[str] | None = None,
+    ) -> None:
+        filter_val = status.value if status else "open"
+        games = await queries.list_games(
+            self.bot.db, interaction.guild_id,
+            status=None if filter_val == "all" else filter_val,
+        )
         if not games:
-            await interaction.response.send_message("No open games right now.", ephemeral=True)
+            await interaction.response.send_message(f"No {filter_val} games.", ephemeral=True)
             return
 
-        config = await self._get_guild_config(interaction.guild_id)
-        bc = self._block_config(config)
+        config = await get_guild_config(self.bot.db,interaction.guild_id)
+        bc = make_block_config(config)
 
         lines = []
         for g in games:
@@ -437,6 +437,12 @@ class GamesCog(commands.Cog):
             )
             return
 
+        if date is not None and not validate_date(date):
+            await interaction.response.send_message(
+                "Invalid date. Use YYYY-MM-DD format.", ephemeral=True
+            )
+            return
+
         updates = {}
         if title is not None:
             updates["title"] = title
@@ -462,8 +468,8 @@ class GamesCog(commands.Cog):
         # Update original message if we have its location
         if game.get("message_id") and game.get("channel_id"):
             try:
-                config = await self._get_guild_config(interaction.guild_id)
-                bc = self._block_config(config)
+                config = await get_guild_config(self.bot.db,interaction.guild_id)
+                bc = make_block_config(config)
                 when_str = slot_to_discord_time(game["slot_date"], game["slot_block"], config["timezone"], bc)
 
                 channel = interaction.guild.get_channel(game["channel_id"])

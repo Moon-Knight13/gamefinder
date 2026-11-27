@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.db import queries
+from bot.utils.formatting import get_guild_config, make_block_config, ordinal
 from bot.utils.time_blocks import (
     BLOCK_LABELS, BLOCK_ORDER, BlockConfig, block_to_utc_range,
     date_range, utc_to_discord_timestamp,
@@ -27,22 +28,6 @@ SLOT_LABEL = {"morning": "AM", "afternoon": "MID", "evening": "PM"}
 SLOT_EMOJI = {"morning": "\U0001f305", "afternoon": "☀️", "evening": "\U0001f319"}
 
 
-async def _get_config(db, guild_id: int) -> dict:
-    config = await queries.get_guild_config(db, guild_id)
-    if not config:
-        await queries.ensure_guild(db, guild_id)
-        config = await queries.get_guild_config(db, guild_id)
-    return config
-
-
-def _block_config(config: dict) -> BlockConfig:
-    return BlockConfig(
-        morning_start=config["morning_start"], morning_end=config["morning_end"],
-        afternoon_start=config["afternoon_start"], afternoon_end=config["afternoon_end"],
-        evening_start=config["evening_start"], evening_end=config["evening_end"],
-    )
-
-
 def _time_slots_header(day: datetime.date, server_tz: str, bc: BlockConfig) -> str:
     parts = []
     for block in BLOCK_ORDER:
@@ -51,12 +36,6 @@ def _time_slots_header(day: datetime.date, server_tz: str, bc: BlockConfig) -> s
         e = utc_to_discord_timestamp(end_dt, "t")
         parts.append(f"{SLOT_EMOJI[block]} **{SLOT_LABEL[block]}** {s}–{e}")
     return " │ ".join(parts)
-
-
-def _ordinal(n: int) -> str:
-    if 11 <= n % 100 <= 13:
-        return f"{n}th"
-    return f"{n}{['th','st','nd','rd','th','th','th','th','th','th'][n % 10]}"
 
 
 class CalendarGrid(discord.ui.LayoutView):
@@ -97,8 +76,8 @@ class CalendarGrid(discord.ui.LayoutView):
 
         await self._load_data()
 
-        config = await _get_config(self.db, self.guild_id)
-        bc = _block_config(config)
+        config = await get_guild_config(self.db, self.guild_id)
+        bc = make_block_config(config)
         server_tz = config["timezone"]
 
         import calendar
@@ -142,7 +121,7 @@ class CalendarGrid(discord.ui.LayoutView):
         # Select menu: custom hours or recurring for a day
         action_options = []
         for d in days:
-            lbl = f"{DAY_ABBR[d.weekday()]} {_ordinal(d.day)}"
+            lbl = f"{DAY_ABBR[d.weekday()]} {ordinal(d.day)}"
             has_rec = any((d.weekday(), b) in self.recurring for b in BLOCK_ORDER)
             rec_tag = " \U0001f501" if has_rec else ""
             action_options.append(discord.SelectOption(
@@ -188,7 +167,7 @@ class CalendarGrid(discord.ui.LayoutView):
 
     def _make_day_row(self, d: datetime.date) -> discord.ui.ActionRow:
         date_str = d.isoformat()
-        day_lbl = f"{DAY_ABBR[d.weekday()]} {_ordinal(d.day)}"
+        day_lbl = f"{DAY_ABBR[d.weekday()]} {ordinal(d.day)}"
         buttons = []
 
         for block in BLOCK_ORDER:
@@ -302,8 +281,8 @@ class RecurringEditView(discord.ui.LayoutView):
         recurring_rows = await queries.get_user_recurring(self.db, self.guild_id, self.user_id)
         active = {r["block"] for r in recurring_rows if r["weekday"] == weekday}
 
-        config = await _get_config(self.db, self.guild_id)
-        bc = _block_config(config)
+        config = await get_guild_config(self.db, self.guild_id)
+        bc = make_block_config(config)
         server_tz = config["timezone"]
 
         # Slot descriptions with times
@@ -421,9 +400,9 @@ class CustomHoursView(discord.ui.LayoutView):
     async def build(self) -> None:
         self.clear_items()
 
-        config = await _get_config(self.db, self.guild_id)
+        config = await get_guild_config(self.db, self.guild_id)
         server_tz = config["timezone"]
-        bc = _block_config(config)
+        bc = make_block_config(config)
         day_name = DAY_NAMES[self.day.weekday()]
         tz = ZoneInfo(server_tz)
 
@@ -487,7 +466,7 @@ class CustomHoursView(discord.ui.LayoutView):
 
         c = discord.ui.Container(
             discord.ui.TextDisplay(
-                f"⏰ **{day_name} {_ordinal(self.day.day)}**{status}\n\n"
+                f"⏰ **{day_name} {ordinal(self.day.day)}**{status}\n\n"
                 f"**Quick:** tap a slot │ **Custom:** pick range below\n"
                 f"{time_ref}"
             ),
@@ -527,8 +506,8 @@ class CustomHoursView(discord.ui.LayoutView):
         if self.start_hour >= self.end_hour:
             await interaction.response.send_message("End must be after start.", ephemeral=True)
             return
-        config = await _get_config(self.db, self.guild_id)
-        bc = _block_config(config)
+        config = await get_guild_config(self.db, self.guild_id)
+        bc = make_block_config(config)
         for block in BLOCK_ORDER:
             bs = getattr(bc, f"{block}_start")
             be = getattr(bc, f"{block}_end")
@@ -620,8 +599,8 @@ class AvailabilityCog(commands.Cog):
             await interaction.followup.send("icalendar library not available.")
             return
         cal = Calendar.from_ical(data)
-        config = await _get_config(self.bot.db, interaction.guild_id)
-        bc = _block_config(config)
+        config = await get_guild_config(self.bot.db, interaction.guild_id)
+        bc = make_block_config(config)
         server_tz = ZoneInfo(config["timezone"])
         count = 0
         for component in cal.walk():

@@ -215,6 +215,9 @@ class AdminCog(commands.Cog):
         maybe: int = 1,
         spectators: int = 1,
     ) -> None:
+        if not self.bot.config.dev_mode:
+            await interaction.response.send_message("Dev commands disabled. Set DEV_MODE=1.", ephemeral=True)
+            return
         game = await queries.get_game(self.bot.db, game_id, interaction.guild_id)
         if not game:
             await interaction.response.send_message("Game not found.", ephemeral=True)
@@ -319,6 +322,9 @@ class AdminCog(commands.Cog):
         campaign_id: int,
         count: int = 4,
     ) -> None:
+        if not self.bot.config.dev_mode:
+            await interaction.response.send_message("Dev commands disabled. Set DEV_MODE=1.", ephemeral=True)
+            return
         campaign = await queries.get_campaign(self.bot.db, campaign_id, interaction.guild_id)
         if not campaign:
             await interaction.response.send_message("Campaign not found.", ephemeral=True)

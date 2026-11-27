@@ -184,11 +184,19 @@ async def get_game(db: Database, game_id: int, guild_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-async def list_games(db: Database, guild_id: int, status: str = "open") -> list[dict]:
-    rows = await db.fetch_all(
-        "SELECT * FROM games WHERE guild_id = ? AND status = ? ORDER BY slot_date, slot_block",
-        (guild_id, status),
-    )
+async def list_games(
+    db: Database, guild_id: int, status: str | None = "open",
+) -> list[dict]:
+    if status:
+        rows = await db.fetch_all(
+            "SELECT * FROM games WHERE guild_id = ? AND status = ? ORDER BY slot_date, slot_block",
+            (guild_id, status),
+        )
+    else:
+        rows = await db.fetch_all(
+            "SELECT * FROM games WHERE guild_id = ? ORDER BY slot_date, slot_block",
+            (guild_id,),
+        )
     return [dict(r) for r in rows]
 
 
@@ -268,10 +276,11 @@ async def get_consistent_players(
     Returns list of {weekday, block, consistent_count, total_weeks, players}
     sorted by consistent_count descending.
     """
+    # Use (strftime('%w') + 6) % 7 to convert Sun=0 to Mon=0 convention
     rows = await db.fetch_all(
         """
         SELECT user_id, block,
-               CAST(strftime('%w', date) AS INTEGER) as weekday,
+               (CAST(strftime('%w', date) AS INTEGER) + 6) % 7 as weekday,
                COUNT(DISTINCT date) as week_count
         FROM availability
         WHERE guild_id = ? AND date >= ? AND date <= ?
@@ -442,6 +451,7 @@ async def get_roster(db: Database, campaign_id: int) -> list[dict]:
 async def delete_user_data(db: Database, user_id: int) -> None:
     await db.execute("DELETE FROM rsvps WHERE user_id = ?", (user_id,))
     await db.execute("DELETE FROM availability WHERE user_id = ?", (user_id,))
+    await db.execute("DELETE FROM recurring_availability WHERE user_id = ?", (user_id,))
     await db.execute("DELETE FROM campaign_roster WHERE user_id = ?", (user_id,))
     await db.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
 
