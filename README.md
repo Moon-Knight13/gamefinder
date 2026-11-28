@@ -3,7 +3,7 @@
 [![ci](https://github.com/Moon-Knight13/gamefinder/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Moon-Knight13/gamefinder/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![discord.py 2.7+](https://img.shields.io/badge/discord.py-2.7+-5865F2.svg)](https://github.com/Rapptz/discord.py)
+[![discord.py 2.4+](https://img.shields.io/badge/discord.py-2.4+-5865F2.svg)](https://github.com/Rapptz/discord.py)
 
 **A Discord bot that turns "when is everyone free?" into actual games.**
 
@@ -48,14 +48,15 @@ experience — no web links, no external tools, everything inside Discord.
 - **Full CRUD** — create, edit, cancel, list games (filter by status)
 
 ### Campaigns
-- **Campaign creation** — recurring games with defined session count (1–52)
+- **Campaign creation** — recurring games with defined session count (1–52), weekly or biweekly cadence
 - **Roster management** — Join, Leave, Spectate buttons (persistent across restarts)
-- **Progress tracking** — visual progress bar, next session dates, roster count
+- **Progress tracking** — visual progress bar, next session dates, roster count, `/session-complete` advances it
 - **Consistency detection** — identifies players reliably free for the same weekly slot
-- **Lifecycle** — active, paused, completed states
+- **Lifecycle** — active, paused, completed states with auto-complete at session count
 
 ### Server Admin
 - **One-command setup** — `/setup` configures scheduling channel, timezone, block hours, threshold, forecast window (1–12 weeks)
+- **Live dashboard** — `/widget` posts a pinned stats embed that auto-updates hourly (games, campaigns, top windows)
 - **Nudge** — prompt members who haven't submitted availability
 - **Stats** — response rate, top windows, games posted
 - **Data deletion** — `/data-delete` with confirmation for GDPR compliance
@@ -82,16 +83,18 @@ experience — no web links, no external tools, everything inside Discord.
 | `/game-edit` | Edit a game you created |
 | `/game-cancel` | Cancel a game and notify RSVP'd players |
 | `/games` | List games (filter: open, full, cancelled, all) |
-| `/campaign-create` | Start a recurring campaign |
+| `/campaign-create` | Start a recurring campaign (weekly/biweekly, 1–52 sessions) |
 | `/campaigns` | List active campaigns |
 | `/campaign-status` | View campaign details and roster |
 | `/campaign-pause` | Pause or resume a campaign |
 | `/campaign-end` | End a campaign with final stats |
+| `/session-complete` | Mark a campaign session done (auto-completes at count) |
 
 ### Admin
 | Command | Description |
 |---------|-------------|
 | `/setup` | Configure server settings |
+| `/widget` | Post a live stats dashboard that auto-updates hourly |
 | `/nudge` | Prompt members to submit availability |
 | `/stats` | View server scheduling stats |
 
@@ -148,6 +151,7 @@ python -m bot
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `DISCORD_TOKEN` | Yes | — | Bot token from Discord Developer Portal |
+| `DISCORD_MCP_TOKEN` | No | — | Token for MCP Discord integration (dev only) |
 | `DB_PATH` | No | `data/gamefinder.db` | SQLite database path |
 | `LOG_LEVEL` | No | `INFO` | Logging level |
 | `DEV_MODE` | No | `false` | Enable dev commands (`/simulate-*`) |
@@ -172,8 +176,9 @@ The test suite includes:
 
 Single-process Python bot. No external services.
 
-- **discord.py 2.7+** — Components V2 (LayoutView, Container, Section), slash commands, persistent views, scheduled events
+- **discord.py 2.4+** — Components V2 (LayoutView, Container, Section), slash commands, persistent views, scheduled events
 - **SQLite (aiosqlite)** — WAL mode, guild-scoped queries, auto-migration
+- **APScheduler** — auto-purge stale availability, 24h game reminders, session-day pings, hourly widget updates
 - **icalendar** — .ics calendar import
 
 All times stored UTC. Displayed via Discord `<t:>` timestamps — each viewer
@@ -181,7 +186,7 @@ sees their own timezone automatically.
 
 ### Database Schema
 
-10 tables: `guilds`, `users`, `availability`, `recurring_availability`, `games`,
+9 tables: `guilds`, `users`, `availability`, `recurring_availability`, `games`,
 `rsvps`, `campaigns`, `campaign_roster`, `sessions`. Every query scopes by
 `guild_id` — no cross-server data leakage.
 
