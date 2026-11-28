@@ -27,6 +27,7 @@ class GameFinder(commands.Bot):
             "bot.cogs.games",
             "bot.cogs.campaigns",
             "bot.cogs.admin",
+            "bot.cogs.settings",
         ]
         for module in cog_modules:
             try:

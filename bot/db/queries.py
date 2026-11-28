@@ -499,11 +499,120 @@ async def get_roster(db: Database, campaign_id: int) -> list[dict]:
 # --- Admin / data management ---
 
 
+VALID_FEATURES = frozenset({
+    "availability",
+    "games",
+    "campaigns",
+    "widget",
+    "reminders",
+    "game_day_pings",
+    "auto_events",
+    "player_pings",
+})
+
+VALID_DM_PREF_KEYS = frozenset({
+    "default_player_cap",
+    "default_session_count",
+    "default_player_min",
+    "default_player_max",
+    "default_cadence",
+})
+
+DM_PREF_DEFAULTS: dict[str, str] = {
+    "default_player_cap": "5",
+    "default_session_count": "8",
+    "default_player_min": "3",
+    "default_player_max": "6",
+    "default_cadence": "weekly",
+}
+
+
+# --- Guild features ---
+
+
+async def is_feature_enabled(db: Database, guild_id: int, feature: str) -> bool:
+    if feature not in VALID_FEATURES:
+        return True
+    row = await db.fetch_one(
+        "SELECT enabled FROM guild_features WHERE guild_id = ? AND feature = ?",
+        (guild_id, feature),
+    )
+    if row is None:
+        return True
+    return bool(row["enabled"])
+
+
+async def set_feature(db: Database, guild_id: int, feature: str, enabled: bool) -> None:
+    await ensure_guild(db, guild_id)
+    await db.execute(
+        """INSERT INTO guild_features (guild_id, feature, enabled)
+           VALUES (?, ?, ?)
+           ON CONFLICT (guild_id, feature) DO UPDATE SET
+               enabled = excluded.enabled,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
+        (guild_id, feature, int(enabled)),
+    )
+
+
+async def get_all_features(db: Database, guild_id: int) -> dict[str, bool]:
+    rows = await db.fetch_all(
+        "SELECT feature, enabled FROM guild_features WHERE guild_id = ?",
+        (guild_id,),
+    )
+    stored = {r["feature"]: bool(r["enabled"]) for r in rows}
+    return {f: stored.get(f, True) for f in sorted(VALID_FEATURES)}
+
+
+# --- DM preferences ---
+
+
+async def get_dm_pref(
+    db: Database, guild_id: int, user_id: int, key: str
+) -> str | None:
+    row = await db.fetch_one(
+        "SELECT value FROM dm_preferences WHERE guild_id = ? AND user_id = ? AND key = ?",
+        (guild_id, user_id, key),
+    )
+    if row is None:
+        return DM_PREF_DEFAULTS.get(key)
+    return row["value"]
+
+
+async def set_dm_pref(
+    db: Database, guild_id: int, user_id: int, key: str, value: str
+) -> None:
+    await ensure_guild(db, guild_id)
+    await ensure_user(db, user_id)
+    await db.execute(
+        """INSERT INTO dm_preferences (guild_id, user_id, key, value)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT (guild_id, user_id, key) DO UPDATE SET
+               value = excluded.value,
+               updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
+        (guild_id, user_id, key, value),
+    )
+
+
+async def get_all_dm_prefs(
+    db: Database, guild_id: int, user_id: int
+) -> dict[str, str]:
+    rows = await db.fetch_all(
+        "SELECT key, value FROM dm_preferences WHERE guild_id = ? AND user_id = ?",
+        (guild_id, user_id),
+    )
+    stored = {r["key"]: r["value"] for r in rows}
+    return {k: stored.get(k, v) for k, v in DM_PREF_DEFAULTS.items()}
+
+
+# --- Admin / data management ---
+
+
 async def delete_user_data(db: Database, user_id: int) -> None:
     await db.execute("DELETE FROM rsvps WHERE user_id = ?", (user_id,))
     await db.execute("DELETE FROM availability WHERE user_id = ?", (user_id,))
     await db.execute("DELETE FROM recurring_availability WHERE user_id = ?", (user_id,))
     await db.execute("DELETE FROM campaign_roster WHERE user_id = ?", (user_id,))
+    await db.execute("DELETE FROM dm_preferences WHERE user_id = ?", (user_id,))
     await db.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
 
 
@@ -520,6 +629,8 @@ async def delete_guild_data(db: Database, guild_id: int) -> None:
     await db.execute("DELETE FROM games WHERE guild_id = ?", (guild_id,))
     await db.execute("DELETE FROM campaigns WHERE guild_id = ?", (guild_id,))
     await db.execute("DELETE FROM availability WHERE guild_id = ?", (guild_id,))
+    await db.execute("DELETE FROM guild_features WHERE guild_id = ?", (guild_id,))
+    await db.execute("DELETE FROM dm_preferences WHERE guild_id = ?", (guild_id,))
     await db.execute("DELETE FROM guilds WHERE guild_id = ?", (guild_id,))
 
 

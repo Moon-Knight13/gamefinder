@@ -12,6 +12,8 @@ async def test_tables_created(db):
     assert "campaigns" in names
     assert "campaign_roster" in names
     assert "sessions" in names
+    assert "guild_features" in names
+    assert "dm_preferences" in names
 
 
 async def test_guild_isolation(db):

@@ -92,6 +92,33 @@ class Database:
             await self._conn.execute("ALTER TABLE guilds ADD COLUMN widget_message_id INTEGER")
             await self._conn.execute("ALTER TABLE guilds ADD COLUMN widget_channel_id INTEGER")
             await self._conn.commit()
+        # v5: guild_features and dm_preferences tables
+        tables = await self._conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )
+        table_names = {r[0] for r in await tables.fetchall()}
+        if "guild_features" not in table_names:
+            await self._conn.executescript("""
+                CREATE TABLE IF NOT EXISTS guild_features (
+                    guild_id INTEGER NOT NULL,
+                    feature TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    PRIMARY KEY (guild_id, feature),
+                    FOREIGN KEY (guild_id) REFERENCES guilds(guild_id)
+                );
+                CREATE TABLE IF NOT EXISTS dm_preferences (
+                    guild_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    key TEXT NOT NULL,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    PRIMARY KEY (guild_id, user_id, key),
+                    FOREIGN KEY (guild_id) REFERENCES guilds(guild_id),
+                    FOREIGN KEY (user_id) REFERENCES users(user_id)
+                );
+            """)
+            await self._conn.commit()
 
 
 _SCHEMA = """
@@ -216,5 +243,25 @@ CREATE TABLE IF NOT EXISTS sessions (
         CHECK (status IN ('scheduled', 'cancelled', 'completed')),
     discord_event_id INTEGER,
     FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
+);
+
+CREATE TABLE IF NOT EXISTS guild_features (
+    guild_id INTEGER NOT NULL,
+    feature TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    PRIMARY KEY (guild_id, feature),
+    FOREIGN KEY (guild_id) REFERENCES guilds(guild_id)
+);
+
+CREATE TABLE IF NOT EXISTS dm_preferences (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    PRIMARY KEY (guild_id, user_id, key),
+    FOREIGN KEY (guild_id) REFERENCES guilds(guild_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 """
